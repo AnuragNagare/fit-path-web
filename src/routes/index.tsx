@@ -90,7 +90,7 @@ function Landing({ onStart, onRoute, onTheme, themeLight }: { onStart: () => voi
         <RouteTrail className="absolute left-[16%] top-[22%] hidden h-36 w-[76%] lg:block" />
         <div className="relative z-10">
           <p className="font-mono text-sm uppercase tracking-[0.08em] text-primary">Route-based discovery</p>
-          <h1 className="mt-5 font-display text-[clamp(3.7rem,6vw,6.3rem)] font-black uppercase leading-[0.9] tracking-normal">
+          <h1 className="mt-5 font-display text-[clamp(2.9rem,6vw,6.3rem)] font-black uppercase leading-[0.9] tracking-normal">
             Find<br />gyms<br /><span className="text-primary">wherever</span><br />you go.
           </h1>
           <p className="mt-6 max-w-sm text-base leading-6 text-muted-foreground">Complete details, honest photos, gyms that fit the route you already travel, not just the one nearest your pin.</p>
