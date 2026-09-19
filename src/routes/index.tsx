@@ -45,9 +45,9 @@ function Logo({ onClick }: { onClick?: () => void }) {
   );
 }
 
-function ArrowButton({ children, className, onClick }: { children: React.ReactNode; className?: string; onClick?: () => void }) {
+function ArrowButton({ children, className, onClick, size = "default" }: { children: React.ReactNode; className?: string; onClick?: () => void; size?: "default" | "sm" | "lg" }) {
   return (
-    <Button onClick={onClick} className={cn("group", className)}>
+    <Button onClick={onClick} size={size} className={cn("group", className)}>
       {children}<ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
     </Button>
   );
@@ -99,11 +99,11 @@ function Landing({ onStart, onRoute, onTheme, themeLight }: { onStart: () => voi
         <PhoneMockup />
         <div className="relative z-10 grid grid-cols-2 gap-0 lg:grid-cols-1">
           {[
-            [MapPin, 'Route-based recommendations'], [Camera, 'Real photos & full details'], [Star, 'Honest reviews & ratings'], [Dumbbell, 'Find the best gyms on your journey'],
-          ].map(([Icon, text]) => (
-            <div key={text as string} className="flex min-h-24 items-center gap-5 border-b border-border py-4">
+            { Icon: MapPin, text: 'Route-based recommendations' }, { Icon: Camera, text: 'Real photos & full details' }, { Icon: Star, text: 'Honest reviews & ratings' }, { Icon: Dumbbell, text: 'Find the best gyms on your journey' },
+          ].map(({ Icon, text }) => (
+            <div key={text} className="flex min-h-24 items-center gap-5 border-b border-border py-4">
               <Icon className="size-7 shrink-0 text-primary" />
-              <p className="max-w-36 text-sm leading-5 text-muted-foreground">{text as string}</p>
+              <p className="max-w-36 text-sm leading-5 text-muted-foreground">{text}</p>
             </div>
           ))}
         </div>
