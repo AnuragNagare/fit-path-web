@@ -67,15 +67,16 @@ function TraceApp() {
   return (
     <main className={cn("min-h-screen bg-background text-foreground", themeLight && "light-preview")}>
       <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 gap-1 rounded-full border border-border bg-card/90 p-1 shadow-2xl backdrop-blur-md" aria-label="Screen preview switcher">
-        {(["home", "login", "route"] as Screen[]).map((item, index) => (
+        {(["home", "login", "route", "results"] as Screen[]).map((item, index) => (
           <Button key={item} variant={screen === item ? "neon" : "ghost"} size="sm" onClick={() => setScreen(item)}>
-            {index + 1}<span className="hidden sm:inline">{item === "home" ? "Home" : item === "login" ? "Login" : "Route"}</span>
+            {index + 1}<span className="hidden sm:inline">{item === "home" ? "Home" : item === "login" ? "Login" : item === "route" ? "Route" : "Results"}</span>
           </Button>
         ))}
       </div>
       {screen === "home" && <Landing onStart={() => setScreen("login")} onRoute={() => setScreen("route")} themeLight={themeLight} onTheme={() => setThemeLight((value) => !value)} />}
       {screen === "login" && <Login onBack={() => setScreen("home")} onSuccess={() => setScreen("route")} />}
-      {screen === "route" && <RouteChoice onHome={() => setScreen("home")} />}
+      {screen === "route" && <RouteChoice onHome={() => setScreen("home")} onResults={() => setScreen("results")} />}
+      {screen === "results" && <GymResults onBack={() => setScreen("route")} />}
     </main>
   );
 }
@@ -179,7 +180,7 @@ function Login({ onBack, onSuccess }: { onBack: () => void; onSuccess: () => voi
   );
 }
 
-function RouteChoice({ onHome }: { onHome: () => void }) {
+function RouteChoice({ onHome, onResults }: { onHome: () => void; onResults: () => void }) {
   const [choice, setChoice] = useState<"near" | "route">("near");
   return (
     <div className="relative min-h-screen overflow-hidden px-6 pb-20 lg:px-[6vw]">
