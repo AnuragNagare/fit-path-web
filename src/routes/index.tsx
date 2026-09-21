@@ -206,6 +206,11 @@ function Login({ onBack, onSuccess, session, isPending }: { onBack: () => void; 
     onSuccess();
   };
 
+  const switchMode = (next: "login" | "signup") => {
+    setMode(next);
+    setError(null);
+  };
+
   const handleGoogle = async () => {
     setError(null);
     const { error: authError } = await authClient.signIn.social({ provider: "google", callbackURL: window.location.href });
@@ -240,9 +245,9 @@ function Login({ onBack, onSuccess, session, isPending }: { onBack: () => void; 
             <Button type="button" variant="outline" className="w-full" onClick={handleGoogle} disabled={isPending}><span className="text-base font-bold text-primary">G</span> Continue with Google</Button>
             <p className="mt-16 text-center text-xs text-muted-foreground">
               {mode === "login" ? (
-                <>Don't have an account? <button type="button" className="ml-3 text-primary" onClick={() => setMode("signup")}>Create one <ArrowRight className="inline size-3"/></button></>
+                <>Don't have an account? <button type="button" className="ml-3 text-primary" onClick={() => switchMode("signup")}>Create one <ArrowRight className="inline size-3"/></button></>
               ) : (
-                <>Already have an account? <button type="button" className="ml-3 text-primary" onClick={() => setMode("login")}>Log in <ArrowRight className="inline size-3"/></button></>
+                <>Already have an account? <button type="button" className="ml-3 text-primary" onClick={() => switchMode("login")}>Log in <ArrowRight className="inline size-3"/></button></>
               )}
             </p>
           </form>
