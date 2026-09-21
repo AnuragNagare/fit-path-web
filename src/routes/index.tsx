@@ -183,7 +183,7 @@ function Login({ onBack, onSuccess }: { onBack: () => void; onSuccess: () => voi
   );
 }
 
-function RouteChoice({ onHome }: { onHome: () => void }) {
+function RouteChoice({ onHome, onExplore }: { onHome: () => void; onExplore: () => void }) {
   const [choice, setChoice] = useState<"near" | "route">("near");
   return (
     <div className="relative min-h-screen overflow-hidden px-6 pb-20 lg:px-[6vw]">
@@ -191,8 +191,8 @@ function RouteChoice({ onHome }: { onHome: () => void }) {
       <div className="mx-auto grid max-w-[1380px] gap-10 pt-10 lg:grid-cols-[0.72fr_1.28fr]">
         <div><p className="font-mono text-sm uppercase text-primary">Choose your route</p><h1 className="mt-5 max-w-[480px] font-display text-[clamp(2.8rem,5vw,4.6rem)] font-black uppercase leading-[0.95]">How do you<br /><span className="text-primary">want to find</span><br />your gym?</h1><p className="mt-6 max-w-sm text-sm leading-6 text-muted-foreground">Choose an option below to get started. We'll show you the best gyms based on your preference.</p><img src={gymImage} alt="Premium gym interior" width={1536} height={1024} className="mt-10 h-[290px] w-full max-w-[480px] rounded-lg object-cover opacity-75" /></div>
         <div className="grid content-center gap-6 md:grid-cols-2">
-          <ChoiceCard active={choice === "near"} onSelect={() => setChoice("near")} title="Near me" description="Find gyms around your current location." icon={<MapPin className="size-11 text-primary"/>} graphic={<Radar/>}/>
-          <ChoiceCard active={choice === "route"} onSelect={() => setChoice("route")} title="From a to b" description="Plan a route and find gyms along the way." icon={<RouteIcon className="size-10 text-primary"/>} graphic={<MiniRoute/>}/>
+          <ChoiceCard active={choice === "near"} onSelect={() => { setChoice("near"); onExplore(); }} title="Near me" description="Find gyms around your current location." icon={<MapPin className="size-11 text-primary"/>} graphic={<Radar/>}/>
+          <ChoiceCard active={choice === "route"} onSelect={() => { setChoice("route"); onExplore(); }} title="From a to b" description="Plan a route and find gyms along the way." icon={<RouteIcon className="size-10 text-primary"/>} graphic={<MiniRoute/>}/>
         </div>
       </div>
       <RouteTrail className="absolute -bottom-5 right-0 h-44 w-1/2"/>
