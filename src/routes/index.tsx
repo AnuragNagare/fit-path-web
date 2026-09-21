@@ -206,3 +206,125 @@ function ChoiceCard({ active, onSelect, title, description, icon, graphic }: { a
 
 function Radar() { return <div className="relative grid size-40 place-items-center rounded-full border border-primary/10 bg-primary/5"><span className="absolute size-28 rounded-full border border-primary/15"/><span className="absolute size-20 rounded-full border border-primary/20 bg-primary/5"/><span className="absolute size-12 rounded-full border border-primary/30 bg-primary/10"/><span className="size-4 rounded-full border-2 border-foreground bg-primary shadow-[0_0_18px_var(--primary)]"/><MapPin className="absolute left-0 top-3 size-5 text-primary"/><MapPin className="absolute bottom-3 right-1 size-5 text-primary"/></div> }
 function MiniRoute() { return <div className="relative h-40 w-full"><svg viewBox="0 0 300 150" className="h-full w-full" fill="none"><path d="M25 88C80 142 102 31 169 74C219 105 243 88 275 31" stroke="currentColor" strokeWidth="2" strokeDasharray="7 8" className="text-primary"/><circle cx="25" cy="88" r="8" fill="currentColor" className="text-primary"/><circle cx="275" cy="31" r="8" fill="currentColor" className="text-primary"/></svg></div> }
+
+type NearbyGym = { id: string; name: string; area: string; distance: string; rating: string; price: string; day: string; image: string };
+
+const NEARBY_GYMS: NearbyGym[] = [
+  { id: "fitplus", name: "Fit Plus", area: "Hinjewadi", distance: "1.2", rating: "4.6", price: "₹1,499/mo", day: "₹269/day", image: gymImage },
+  { id: "cultfit", name: "Cult.fit Gym, Phase 3, Hinjewadi", area: "Hinjewadi", distance: "1.2", rating: "4.6", price: "₹1,600/mo", day: "₹450/day", image: gymImage2 },
+];
+
+function NearbyGyms({ onBack }: { onBack: () => void }) {
+  const [selected, setSelected] = useState<string>("cultfit");
+  const [filters, setFilters] = useState<string[]>(["Parking"]);
+  const toggleFilter = (filter: string) => setFilters((current) => current.includes(filter) ? current.filter((item) => item !== filter) : [...current, filter]);
+  return (
+    <div className="min-h-screen pb-24">
+      <header className="flex h-20 items-center justify-between border-b border-border px-6 lg:px-[4vw]">
+        <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="size-4"/> Back</Button>
+        <div className="flex items-center gap-5 text-muted-foreground">
+          <button aria-label="Search" className="hover:text-foreground"><Search className="size-5"/></button>
+          <button aria-label="Notifications" className="relative hover:text-foreground"><Bell className="size-5"/><span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-primary"/></button>
+          <button aria-label="Profile" className="hover:text-foreground"><UserRound className="size-6"/></button>
+        </div>
+      </header>
+
+      <div className="mx-auto grid max-w-[1440px] gap-10 px-6 pt-10 lg:grid-cols-[1.05fr_0.95fr] lg:px-[4vw]">
+        <section>
+          <div className="flex flex-wrap items-start justify-between gap-6">
+            <div>
+              <h1 className="font-display text-[clamp(2.2rem,4vw,3.6rem)] font-black leading-[1.02]">Find Gyms<br /><span className="text-primary">Near You</span></h1>
+              <p className="mt-4 max-w-xs text-sm leading-6 text-muted-foreground">Discover the best gyms around your location and start your fitness journey.</p>
+            </div>
+            <div className="flex h-12 w-full max-w-[300px] items-center gap-3 rounded-full border border-border bg-card px-5">
+              <MapPin className="size-4 shrink-0 text-primary"/>
+              <input defaultValue="Hinjewadi, Pune" className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground" aria-label="Location"/>
+              <Crosshair className="size-4 shrink-0 text-muted-foreground"/>
+            </div>
+          </div>
+
+          <div className="mt-8 flex flex-wrap items-center gap-6 rounded-full border border-border px-5 py-2.5 text-xs text-muted-foreground">
+            <span className="flex items-center gap-2"><span className="size-2.5 rounded-full bg-sky-400"/> You</span>
+            <span className="flex items-center gap-2"><span className="size-2.5 rounded-full bg-foreground"/> Gyms</span>
+            <span className="flex items-center gap-2"><span className="size-2.5 rounded-full bg-primary"/> Selected</span>
+          </div>
+
+          <div className="route-map relative mt-6 h-[380px] overflow-hidden rounded-2xl border border-border sm:h-[440px]">
+            <svg viewBox="0 0 700 440" className="h-full w-full" fill="none" aria-hidden="true">
+              <rect width="700" height="440" className="fill-card"/>
+              <g stroke="currentColor" strokeWidth="6" className="text-border/40">
+                <path d="M-20 120 L180 100 L320 180 L520 150 L720 200"/>
+                <path d="M120 -20 L160 140 L140 320 L220 460"/>
+                <path d="M320 180 L360 340 L340 460"/>
+                <path d="M520 150 L560 320 L500 460"/>
+                <path d="M-20 300 L140 320 L360 340 L560 320 L720 360"/>
+              </g>
+              <g stroke="currentColor" strokeWidth="2" className="text-border/30">
+                <path d="M240 -20 L260 120 L320 180"/><path d="M420 -20 L460 80 L520 150"/><path d="M60 440 L140 320"/>
+              </g>
+            </svg>
+            <span className="absolute left-[42%] top-[16%] text-center text-xs font-semibold text-muted-foreground">PHASE 3</span>
+            <span className="absolute left-[13%] top-[48%] text-center text-xs text-muted-foreground">Hinjewadi Phase III<br /><span className="text-[10px]">Recently viewed</span></span>
+            <span className="absolute left-[60%] top-[52%] text-xs text-muted-foreground">Hinjewadi Phase 2</span>
+            <span className="absolute left-[58%] top-[74%] text-xs text-muted-foreground">Furlenco St, Hinjawadi</span>
+            <span className="absolute bottom-5 left-[22%] text-xs text-muted-foreground">Godambewadi No. 1</span>
+            <span className="absolute left-[50%] top-[58%] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center"><span className="absolute size-16 animate-ping rounded-full bg-sky-400/20"/><span className="size-8 rounded-full border-4 border-sky-400/40 bg-sky-400 shadow-[0_0_24px_rgba(56,189,248,0.8)]"/></span>
+            {([["32%", "45%", false], ["62%", "50%", false], ["55%", "72%", false], ["34%", "46%", true]] as [string, string, boolean][]).map(([left, top, isSelected], index) => (
+              <MapPin key={index} className={cn("absolute size-8 -translate-x-1/2 -translate-y-full", isSelected ? "fill-primary text-primary drop-shadow-[0_0_10px_var(--primary)]" : "fill-foreground text-foreground")} style={{ left, top }} fill="currentColor"/>
+            ))}
+            <div className="absolute right-5 top-5 grid size-11 place-items-center rounded-full bg-card/90 text-xs font-bold shadow-lg">N<span className="absolute -top-1 text-primary">▲</span></div>
+            <Button variant="outline" size="icon" className="absolute bottom-5 right-5 size-12 rounded-full bg-card/90" aria-label="Navigate"><Navigation className="size-5 text-primary"/></Button>
+          </div>
+
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            {[["Parking", Car], ["Shower", ShowerHead], ["Locker", LockKeyhole], ["AC", Snowflake]].map(([label, Icon]) => {
+              const active = filters.includes(label as string);
+              const LucideIcon = Icon as typeof Car;
+              return <button key={label as string} onClick={() => toggleFilter(label as string)} className={cn("flex items-center gap-2 rounded-full border px-5 py-2.5 text-sm transition-colors", active ? "border-primary text-primary" : "border-border text-foreground hover:border-primary/50")}><LucideIcon className="size-4"/> {label as string}</button>;
+            })}
+            <div className="ml-auto flex items-center gap-4">
+              <button className="text-primary" aria-label="Filter"><Filter className="size-5"/></button>
+              <button className="flex items-center gap-2 text-sm font-semibold uppercase text-primary">Closest <ArrowUpDown className="size-4"/></button>
+            </div>
+          </div>
+        </section>
+
+        <aside>
+          <div className="flex items-baseline justify-between">
+            <h2 className="font-display text-2xl font-bold">Gyms Around <span className="text-primary">You</span></h2>
+            <span className="font-mono text-xs uppercase text-primary">{NEARBY_GYMS.length} found</span>
+          </div>
+          <div className="mt-6 space-y-5">
+            {NEARBY_GYMS.map((gym) => {
+              const active = selected === gym.id;
+              return (
+                <article key={gym.id} onClick={() => setSelected(gym.id)} className={cn("cursor-pointer rounded-2xl border p-5 transition-colors", active ? "border-primary bg-primary/5 shadow-[0_0_30px_-10px_var(--primary)]" : "border-border bg-card/40 hover:border-primary/40")}>
+                  <div className="flex gap-5">
+                    <img src={gym.image} alt={gym.name} width={640} height={512} loading="lazy" className="size-24 shrink-0 rounded-xl object-cover"/>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <h3 className="font-display text-lg font-bold leading-6">{gym.name}</h3>
+                        <span className="shrink-0 font-mono text-xs text-primary">{gym.distance} KM</span>
+                      </div>
+                      <p className="mt-1 text-sm text-muted-foreground">{gym.area}</p>
+                      <p className="mt-3 flex items-center gap-3 text-xs text-muted-foreground"><span className="text-sm text-foreground">{gym.rating} <span className="text-primary">★</span></span> Parking • Open</p>
+                      <p className="mt-2 text-lg font-bold">{gym.price} <span className="mx-1 text-border">|</span> <span className="text-base font-semibold text-muted-foreground">{gym.day}</span></p>
+                      {active && <Button size="sm" className="mt-4 px-6">Details</Button>}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </aside>
+      </div>
+
+      <footer className="mx-auto mt-14 grid max-w-[1440px] gap-6 border-t border-border px-6 pt-8 sm:grid-cols-3 lg:px-[4vw]">
+        {[[MapPin, "Real locations", "Find gyms near you"], [ShieldCheck, "Verified details", "Accurate & up-to-date"], [Star, "Better choices", "For a healthier you"]].map(([Icon, title, text]) => {
+          const LucideIcon = Icon as typeof MapPin;
+          return <div key={title as string} className="flex items-center gap-4"><LucideIcon className="size-7 text-primary"/><div><p className="text-sm font-semibold">{title as string}</p><p className="text-xs text-muted-foreground">{text as string}</p></div></div>;
+        })}
+      </footer>
+    </div>
+  );
+}
