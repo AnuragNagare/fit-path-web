@@ -2,22 +2,15 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
   ArrowLeft,
   ArrowRight,
-  ArrowUpDown,
   Camera,
-  Compass,
   Dumbbell,
   Eye,
   EyeOff,
-  Funnel,
-  Home,
   LockKeyhole,
   Mail,
   MapPin,
   Moon,
-  Navigation,
-  Pencil,
   Route as RouteIcon,
-  Search,
   Star,
   Sun,
   UserRound,
@@ -25,7 +18,6 @@ import {
 import { useState } from "react";
 
 import gymImage from "@/assets/trace-gym.jpg";
-import gymImage2 from "@/assets/trace-gym-2.jpg";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -43,7 +35,7 @@ export const Route = createFileRoute("/")({
   component: TraceApp,
 });
 
-type Screen = "home" | "login" | "route" | "results";
+type Screen = "home" | "login" | "route";
 
 function Logo({ onClick }: { onClick?: () => void }) {
   return (
@@ -67,16 +59,15 @@ function TraceApp() {
   return (
     <main className={cn("min-h-screen bg-background text-foreground", themeLight && "light-preview")}>
       <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 gap-1 rounded-full border border-border bg-card/90 p-1 shadow-2xl backdrop-blur-md" aria-label="Screen preview switcher">
-        {(["home", "login", "route", "results"] as Screen[]).map((item, index) => (
+        {(["home", "login", "route"] as Screen[]).map((item, index) => (
           <Button key={item} variant={screen === item ? "neon" : "ghost"} size="sm" onClick={() => setScreen(item)}>
-            {index + 1}<span className="hidden sm:inline">{item === "home" ? "Home" : item === "login" ? "Login" : item === "route" ? "Route" : "Results"}</span>
+            {index + 1}<span className="hidden sm:inline">{item === "home" ? "Home" : item === "login" ? "Login" : "Route"}</span>
           </Button>
         ))}
       </div>
       {screen === "home" && <Landing onStart={() => setScreen("login")} onRoute={() => setScreen("route")} themeLight={themeLight} onTheme={() => setThemeLight((value) => !value)} />}
       {screen === "login" && <Login onBack={() => setScreen("home")} onSuccess={() => setScreen("route")} />}
-      {screen === "route" && <RouteChoice onHome={() => setScreen("home")} onResults={() => setScreen("results")} />}
-      {screen === "results" && <GymResults onBack={() => setScreen("route")} />}
+      {screen === "route" && <RouteChoice onHome={() => setScreen("home")} />}
     </main>
   );
 }
@@ -180,7 +171,7 @@ function Login({ onBack, onSuccess }: { onBack: () => void; onSuccess: () => voi
   );
 }
 
-function RouteChoice({ onHome, onResults }: { onHome: () => void; onResults: () => void }) {
+function RouteChoice({ onHome }: { onHome: () => void }) {
   const [choice, setChoice] = useState<"near" | "route">("near");
   return (
     <div className="relative min-h-screen overflow-hidden px-6 pb-20 lg:px-[6vw]">
@@ -188,8 +179,8 @@ function RouteChoice({ onHome, onResults }: { onHome: () => void; onResults: () 
       <div className="mx-auto grid max-w-[1380px] gap-10 pt-10 lg:grid-cols-[0.72fr_1.28fr]">
         <div><p className="font-mono text-sm uppercase text-primary">Choose your route</p><h1 className="mt-5 max-w-[480px] font-display text-[clamp(2.8rem,5vw,4.6rem)] font-black uppercase leading-[0.95]">How do you<br /><span className="text-primary">want to find</span><br />your gym?</h1><p className="mt-6 max-w-sm text-sm leading-6 text-muted-foreground">Choose an option below to get started. We'll show you the best gyms based on your preference.</p><img src={gymImage} alt="Premium gym interior" width={1536} height={1024} className="mt-10 h-[290px] w-full max-w-[480px] rounded-lg object-cover opacity-75" /></div>
         <div className="grid content-center gap-6 md:grid-cols-2">
-          <ChoiceCard active={choice === "near"} onSelect={() => { setChoice("near"); onResults(); }} title="Near me" description="Find gyms around your current location." icon={<MapPin className="size-11 text-primary"/>} graphic={<Radar/>}/>
-          <ChoiceCard active={choice === "route"} onSelect={() => { setChoice("route"); onResults(); }} title="From a to b" description="Plan a route and find gyms along the way." icon={<RouteIcon className="size-10 text-primary"/>} graphic={<MiniRoute/>}/>
+          <ChoiceCard active={choice === "near"} onSelect={() => setChoice("near")} title="Near me" description="Find gyms around your current location." icon={<MapPin className="size-11 text-primary"/>} graphic={<Radar/>}/>
+          <ChoiceCard active={choice === "route"} onSelect={() => setChoice("route")} title="From a to b" description="Plan a route and find gyms along the way." icon={<RouteIcon className="size-10 text-primary"/>} graphic={<MiniRoute/>}/>
         </div>
       </div>
       <RouteTrail className="absolute -bottom-5 right-0 h-44 w-1/2"/>
@@ -203,94 +194,3 @@ function ChoiceCard({ active, onSelect, title, description, icon, graphic }: { a
 
 function Radar() { return <div className="relative grid size-40 place-items-center rounded-full border border-primary/10 bg-primary/5"><span className="absolute size-28 rounded-full border border-primary/15"/><span className="absolute size-20 rounded-full border border-primary/20 bg-primary/5"/><span className="absolute size-12 rounded-full border border-primary/30 bg-primary/10"/><span className="size-4 rounded-full border-2 border-foreground bg-primary shadow-[0_0_18px_var(--primary)]"/><MapPin className="absolute left-0 top-3 size-5 text-primary"/><MapPin className="absolute bottom-3 right-1 size-5 text-primary"/></div> }
 function MiniRoute() { return <div className="relative h-40 w-full"><svg viewBox="0 0 300 150" className="h-full w-full" fill="none"><path d="M25 88C80 142 102 31 169 74C219 105 243 88 275 31" stroke="currentColor" strokeWidth="2" strokeDasharray="7 8" className="text-primary"/><circle cx="25" cy="88" r="8" fill="currentColor" className="text-primary"/><circle cx="275" cy="31" r="8" fill="currentColor" className="text-primary"/></svg></div> }
-
-type Gym = { name: string; area: string; distance: string; rating: string; priceMonth: string; priceDay: string; image: string };
-
-const GYMS: Gym[] = [
-  { name: "Fit Plus", area: "Hinjewadi", distance: "1.2", rating: "4.6", priceMonth: "₹1,499", priceDay: "₹269", image: gymImage2 },
-  { name: "Cult.fit Gym, Phase 3, Hinjewadi", area: "Hinjawadi", distance: "1.2", rating: "4.6", priceMonth: "₹1,600", priceDay: "₹450", image: gymImage },
-];
-
-function GymResults({ onBack }: { onBack: () => void }) {
-  const [selected, setSelected] = useState(1);
-  const [filters, setFilters] = useState<string[]>([]);
-  const toggleFilter = (filter: string) => setFilters((current) => current.includes(filter) ? current.filter((item) => item !== filter) : [...current, filter]);
-  return (
-    <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-background pb-28">
-      <header className="flex items-center gap-3 px-5 pb-3 pt-5">
-        <Button variant="ghost" size="icon" onClick={onBack} aria-label="Back"><ArrowLeft /></Button>
-        <Logo />
-      </header>
-
-      {/* Map */}
-      <section className="relative mx-4 h-[380px] overflow-hidden rounded-3xl border border-border bg-map">
-        <svg viewBox="0 0 400 380" className="absolute inset-0 h-full w-full" fill="none" aria-hidden="true">
-          <g stroke="currentColor" className="text-border" strokeWidth="1.5" opacity="0.7">
-            <path d="M0 90 L400 60 M0 200 L400 170 M40 0 L80 380 M180 0 L160 380 M300 0 L340 380 M0 300 L400 280" />
-          </g>
-          <g stroke="currentColor" className="text-muted-foreground/40" strokeWidth="3"><path d="M0 150 C120 130 260 190 400 150" /></g>
-        </svg>
-        <p className="absolute left-1/2 top-24 -translate-x-1/2 text-center font-display text-sm font-bold uppercase tracking-widest text-foreground/80">Phase 3<br /><span className="text-[10px] font-medium normal-case text-muted-foreground">फेस ३</span></p>
-        <p className="absolute bottom-6 left-8 font-display text-sm font-bold text-foreground/70">Godambewadi</p>
-        {/* Pins */}
-        <span className="absolute left-[44%] top-[38%] grid size-8 place-items-center rounded-full bg-primary shadow-[0_0_20px_var(--primary)]"><span className="size-3 rounded-full bg-background"/></span>
-        <span className="absolute left-[58%] top-[56%] grid size-8 place-items-center rounded-full bg-sky-400 shadow-lg"><span className="size-3 rounded-full bg-background"/></span>
-        <span className="absolute left-[70%] top-[66%] grid size-7 place-items-center rounded-full border-2 border-foreground/70 bg-card"><span className="size-2 rounded-full bg-foreground/70"/></span>
-        <span className="absolute right-[8%] top-[30%] grid size-7 place-items-center rounded-full border-2 border-foreground/70 bg-card"><span className="size-2 rounded-full bg-foreground/70"/></span>
-        {/* Legend */}
-        <div className="absolute left-4 top-4 flex items-center gap-4 rounded-full border border-primary/60 bg-background/80 px-4 py-2 text-xs backdrop-blur">
-          <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-sky-400"/>You</span>
-          <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-card ring-2 ring-foreground/60"/>Gyms</span>
-          <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-primary"/>Selected</span>
-        </div>
-        <span className="absolute right-4 top-4 grid size-12 place-items-center rounded-full border border-border bg-card/90 shadow-lg"><Compass className="size-5 text-primary"/></span>
-        <span className="absolute bottom-5 right-5 grid size-14 place-items-center rounded-full border border-border bg-card shadow-xl"><Navigation className="size-6 text-foreground"/></span>
-      </section>
-
-      {/* Heading */}
-      <section className="px-5 pt-5">
-        <div className="flex items-center justify-between">
-          <h1 className="font-display text-2xl font-black uppercase">Gyms around you</h1>
-          <button className="flex items-center gap-1.5 rounded-full border border-primary/70 px-3 py-1 text-xs text-primary">Edit <Pencil className="size-3"/></button>
-          <span className="font-mono text-xs uppercase text-primary">2 found</span>
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">Hinjewadi Phase 3</p>
-        <div className="mt-4 flex flex-wrap items-center gap-2.5">
-          {["Parking", "Shower", "Locker", "AC"].map((filter) => (
-            <button key={filter} onClick={() => toggleFilter(filter)} className={cn("rounded-full border px-5 py-2 text-sm transition-colors", filters.includes(filter) ? "border-primary bg-primary text-primary-foreground" : "border-primary/70 text-foreground hover:border-primary")}>{filter}</button>
-          ))}
-          <span className="ml-auto flex flex-col items-center gap-1 text-primary"><Funnel className="size-6"/><span className="sr-only">Filters</span></span>
-          <span className="flex flex-col items-center gap-0.5 text-primary"><ArrowUpDown className="size-5"/><span className="text-[10px] font-semibold uppercase tracking-wide">Closest</span></span>
-        </div>
-      </section>
-
-      {/* Gym list */}
-      <section className="mt-5 space-y-4 border-t border-border px-4 pt-5">
-        {GYMS.map((gym, index) => (
-          <article key={gym.name} onClick={() => setSelected(index)} className={cn("cursor-pointer rounded-2xl p-3 transition-colors", selected === index ? "bg-primary/15 ring-1 ring-primary/40" : "hover:bg-card/60")}>
-            <div className="flex gap-4">
-              <img src={gym.image} alt={gym.name} loading="lazy" width={992} height={672} className="h-28 w-32 shrink-0 rounded-xl object-cover" />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-start justify-between gap-2">
-                  <h2 className="font-display text-xl font-bold leading-tight">{gym.name}</h2>
-                  <span className="shrink-0 font-mono text-sm text-primary">{gym.distance} <span className="text-[10px] uppercase">km</span></span>
-                </div>
-                <p className="mt-1 text-sm text-muted-foreground">{gym.area}</p>
-                <p className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">{gym.rating} <Star className="size-3.5 fill-foreground text-foreground"/> <span className="ml-2">Parking • <span className="text-foreground">Open</span></span></p>
-                <p className="mt-1.5 font-display text-xl font-bold">{gym.priceMonth}/mo <span className="mx-1 text-muted-foreground">|</span> {gym.priceDay}/day</p>
-              </div>
-            </div>
-            {selected === index && <Button variant="neon" className="ml-auto mt-2 flex px-8">Details</Button>}
-          </article>
-        ))}
-      </section>
-
-      {/* Bottom nav */}
-      <nav className="fixed inset-x-0 bottom-0 mx-auto flex w-full max-w-[430px] items-center justify-around border-t border-border bg-background/95 px-8 pb-5 pt-3 backdrop-blur">
-        <button aria-label="Home" className="text-primary"><Home className="size-7"/></button>
-        <button aria-label="Search" className="text-muted-foreground hover:text-foreground"><Search className="size-7"/></button>
-        <button aria-label="Profile" className="text-muted-foreground hover:text-foreground"><UserRound className="size-7"/></button>
-      </nav>
-    </div>
-  );
-}
