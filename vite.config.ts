@@ -12,4 +12,10 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // Hard-pin the Vercel Build Output API target so `vercel` / `vercel --prod` (and Vercel's own
+  // CI build) always produce `.vercel/output` regardless of auto-detection. Only applies outside
+  // the Lovable sandbox build, which pins its own (Cloudflare) preset.
+  nitro: {
+    preset: "vercel",
+  },
 });
