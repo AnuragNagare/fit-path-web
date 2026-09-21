@@ -2,15 +2,22 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
   ArrowLeft,
   ArrowRight,
+  ArrowUpDown,
   Camera,
+  Compass,
   Dumbbell,
   Eye,
   EyeOff,
+  Funnel,
+  Home,
   LockKeyhole,
   Mail,
   MapPin,
   Moon,
+  Navigation,
+  Pencil,
   Route as RouteIcon,
+  Search,
   Star,
   Sun,
   UserRound,
@@ -18,6 +25,7 @@ import {
 import { useState } from "react";
 
 import gymImage from "@/assets/trace-gym.jpg";
+import gymImage2 from "@/assets/trace-gym-2.jpg";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -35,7 +43,7 @@ export const Route = createFileRoute("/")({
   component: TraceApp,
 });
 
-type Screen = "home" | "login" | "route";
+type Screen = "home" | "login" | "route" | "results";
 
 function Logo({ onClick }: { onClick?: () => void }) {
   return (
