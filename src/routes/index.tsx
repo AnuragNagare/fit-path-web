@@ -1,38 +1,75 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
+  Accessibility,
+  Activity,
+  Apple,
+  ArrowDownToLine,
   ArrowLeft,
+  ArrowLeftRight,
   ArrowRight,
+  ArrowUp,
   ArrowUpDown,
+  ArrowUpFromLine,
   Bell,
+  Bike,
+  Boxes,
+  Cable,
   Camera,
   Car,
+  CalendarCheck,
+  CloudFog,
+  Clock,
   Crosshair,
+  Droplets,
   Dumbbell,
   Eye,
   EyeOff,
   Filter,
+  Flame,
+  Flower2,
+  Footprints,
+  Gift,
+  GlassWater,
+  HeartPulse,
+  Layers,
   LockKeyhole,
   Mail,
   MapPin,
   Moon,
+  Music,
   Navigation,
+  PersonStanding,
   Route as RouteIcon,
   Search,
   ShieldCheck,
+  Shirt,
   ShowerHead,
   Snowflake,
   Star,
-  Sun,
+  Sunrise,
+  Swords,
+  ThermometerSun,
+  Ticket,
+  Timer,
+  UserCog,
   UserRound,
+  Users,
+  Venus,
+  Waves,
+  Weight,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import gymImage from "@/assets/trace-gym.jpg";
 import gymImage2 from "@/assets/trace-gym-2.jpg";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { authClient, useSession } from "@/lib/auth-client";
-import { fetchNearbyGyms, geocodeAddress, getCurrentPosition, reverseGeocode, type Coordinates, type GymResult } from "@/lib/geo";
+import { fetchGymsAlongRoute, fetchNearbyGyms, geocodeAddress, getCurrentPosition, reverseGeocode, type Coordinates, type GymResult } from "@/lib/geo";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -68,7 +105,6 @@ function ArrowButton({ children, className, onClick, size = "default", disabled,
 
 function TraceApp() {
   const [screen, setScreen] = useState<Screen>("home");
-  const [themeLight, setThemeLight] = useState(false);
   const { data: session, isPending } = useSession();
   const [searchMode, setSearchMode] = useState<"near" | "route">("near");
 
@@ -83,16 +119,22 @@ function TraceApp() {
     }
   }, [screen, session, isPending]);
 
+  // Google sign-in leaves the app via a full page redirect, so the SPA's
+  // `screen` state resets to "home" when the browser comes back — unlike
+  // email login, which resolves in place and calls onSuccess() directly.
+  // handleGoogle tags the OAuth callbackURL with ?next=route so we can
+  // finish that same jump once the redirect lands and the session loads.
+  useEffect(() => {
+    if (isPending) return;
+    const next = new URLSearchParams(window.location.search).get("next");
+    if (!next) return;
+    window.history.replaceState(null, "", window.location.pathname);
+    if (next === "route" && session) setScreen("route");
+  }, [isPending, session]);
+
   return (
-    <main className={cn("min-h-screen bg-background text-foreground", themeLight && "light-preview")}>
-      <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 gap-1 rounded-full border border-border bg-card/90 p-1 shadow-2xl backdrop-blur-md" aria-label="Screen preview switcher">
-        {(["home", "login", "route", "nearby"] as Screen[]).map((item, index) => (
-          <Button key={item} variant={screen === item ? "neon" : "ghost"} size="sm" onClick={() => setScreen(item)}>
-            {index + 1}<span className="hidden sm:inline">{item === "home" ? "Home" : item === "login" ? "Login" : item === "route" ? "Route" : "Map"}</span>
-          </Button>
-        ))}
-      </div>
-      {screen === "home" && <Landing onStart={() => setScreen(session ? "route" : "login")} onRoute={goToRoute} themeLight={themeLight} onTheme={() => setThemeLight((value) => !value)} />}
+    <main className="min-h-screen bg-background text-foreground">
+      {screen === "home" && <Landing onStart={() => setScreen(session ? "route" : "login")} onRoute={goToRoute} />}
       {screen === "login" && <Login isPending={isPending} session={session} onBack={() => setScreen("home")} onSuccess={() => setScreen("route")} />}
       {screen === "route" && <RouteChoice session={session} onHome={() => setScreen("home")} onExplore={(selected) => { setSearchMode(selected); setScreen("nearby"); }} onSignOut={async () => { await authClient.signOut(); setScreen("home"); }} />}
       {screen === "nearby" && <NearbyGyms mode={searchMode} onBack={() => setScreen("route")} />}
@@ -100,7 +142,7 @@ function TraceApp() {
   );
 }
 
-function Landing({ onStart, onRoute, onTheme, themeLight }: { onStart: () => void; onRoute: () => void; onTheme: () => void; themeLight: boolean }) {
+function Landing({ onStart, onRoute }: { onStart: () => void; onRoute: () => void }) {
   return (
     <div className="min-h-screen overflow-hidden">
       <header className="flex h-[76px] items-center justify-between border-b border-border px-6 lg:px-[6vw]">
@@ -110,7 +152,6 @@ function Landing({ onStart, onRoute, onTheme, themeLight }: { onStart: () => voi
         </nav>
         <div className="flex items-center gap-3">
           <ArrowButton onClick={onStart} className="h-10 px-5">Get Started</ArrowButton>
-          <Button variant="ghost" size="icon" onClick={onTheme} aria-label="Toggle theme">{themeLight ? <Moon /> : <Sun />}</Button>
         </div>
       </header>
 
@@ -129,9 +170,9 @@ function Landing({ onStart, onRoute, onTheme, themeLight }: { onStart: () => voi
           {[
             { Icon: MapPin, text: 'Route-based recommendations' }, { Icon: Camera, text: 'Real photos & full details' }, { Icon: Star, text: 'Honest reviews & ratings' }, { Icon: Dumbbell, text: 'Find the best gyms on your journey' },
           ].map(({ Icon, text }) => (
-            <div key={text} className="flex min-h-24 items-center gap-5 border-b border-border py-4">
-              <Icon className="size-7 shrink-0 text-primary" />
-              <p className="max-w-36 text-sm leading-5 text-muted-foreground">{text}</p>
+            <div key={text} className="group flex min-h-24 items-center gap-5 border-b border-border py-4 transition-colors hover:border-primary/40">
+              <Icon className="size-7 shrink-0 text-primary transition-transform group-hover:scale-110" />
+              <p className="max-w-36 text-sm leading-5 text-muted-foreground transition-colors group-hover:text-foreground">{text}</p>
             </div>
           ))}
         </div>
@@ -211,9 +252,12 @@ function Login({ onBack, onSuccess, session, isPending }: { onBack: () => void; 
     setError(null);
   };
 
-  const handleGoogle = async () => {
+  const handleSocial = async (provider: "google") => {
     setError(null);
-    const { error: authError } = await authClient.signIn.social({ provider: "google", callbackURL: window.location.href });
+    // Marks the return trip so TraceApp's effect can land on the route
+    // screen once the provider redirects back and the session comes through.
+    const callbackURL = `${window.location.origin}${window.location.pathname}?next=route`;
+    const { error: authError } = await authClient.signIn.social({ provider, callbackURL });
     if (authError) setError(authError.message ?? "Google sign-in failed.");
   };
 
@@ -242,7 +286,9 @@ function Login({ onBack, onSuccess, session, isPending }: { onBack: () => void; 
               {submitting ? "Please wait…" : mode === "login" ? "Log In" : "Sign Up"}
             </ArrowButton>
             <div className="my-9 flex items-center gap-5 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border"/>OR<span className="h-px flex-1 bg-border"/></div>
-            <Button type="button" variant="outline" className="w-full" onClick={handleGoogle} disabled={isPending}><span className="text-base font-bold text-primary">G</span> Continue with Google</Button>
+            <div className="space-y-3">
+              <Button type="button" variant="outline" className="w-full" onClick={() => handleSocial("google")} disabled={isPending}><span className="text-base font-bold text-primary">G</span> Continue with Google</Button>
+            </div>
             <p className="mt-16 text-center text-xs text-muted-foreground">
               {mode === "login" ? (
                 <>Don't have an account? <button type="button" className="ml-3 text-primary" onClick={() => switchMode("signup")}>Create one <ArrowRight className="inline size-3"/></button></>
@@ -294,14 +340,199 @@ function mockListingDetails(id: string) {
   };
 }
 
+type Feature = { label: string; icon: typeof Star };
+const FEATURE_CATEGORIES: { name: string; features: Feature[] }[] = [
+  {
+    name: "Access & Membership",
+    features: [
+      { label: "24×7 Access", icon: Clock },
+      { label: "Early Morning Access", icon: Sunrise },
+      { label: "Late Night Access", icon: Moon },
+      { label: "Day Pass", icon: Ticket },
+      { label: "Hourly Pass", icon: Timer },
+      { label: "Free Trial", icon: Gift },
+      { label: "Monthly Membership", icon: CalendarCheck },
+    ],
+  },
+  {
+    name: "Training & Classes",
+    features: [
+      { label: "Personal Training", icon: UserCog },
+      { label: "Group Classes", icon: Users },
+      { label: "Yoga", icon: Flower2 },
+      { label: "Zumba / Dance Fitness", icon: Music },
+      { label: "HIIT / Functional Training", icon: Flame },
+    ],
+  },
+  {
+    name: "Cardio",
+    features: [
+      { label: "Treadmills", icon: Footprints },
+      { label: "Cross Trainer / Elliptical", icon: Activity },
+      { label: "Spin / Exercise Bikes", icon: Bike },
+      { label: "Rowing Machine", icon: Waves },
+    ],
+  },
+  {
+    name: "Strength Training",
+    features: [
+      { label: "Dumbbells & Free Weights", icon: Dumbbell },
+      { label: "Squat Rack / Power Rack", icon: Weight },
+      { label: "Smith Machine", icon: Boxes },
+      { label: "Cable Crossover / Functional Trainer", icon: Cable },
+      { label: "Leg Press", icon: ArrowDownToLine },
+      { label: "Hack Squat", icon: ArrowUpFromLine },
+      { label: "Chest Press", icon: ArrowLeftRight },
+      { label: "Lat Pulldown / Seated Row", icon: ArrowUp },
+    ],
+  },
+  {
+    name: "Functional",
+    features: [
+      { label: "Functional Training Area", icon: Layers },
+      { label: "Calisthenics Area", icon: PersonStanding },
+      { label: "Boxing / Combat Area", icon: Swords },
+    ],
+  },
+  {
+    name: "Recovery & Wellness",
+    features: [
+      { label: "Swimming Pool", icon: Droplets },
+      { label: "Sauna", icon: ThermometerSun },
+      { label: "Steam Room", icon: CloudFog },
+      { label: "Nutrition / Diet Consultation", icon: Apple },
+      { label: "Physiotherapy / Recovery", icon: HeartPulse },
+    ],
+  },
+  {
+    name: "Hygiene & Convenience",
+    features: [
+      { label: "Shower", icon: ShowerHead },
+      { label: "Lockers", icon: LockKeyhole },
+      { label: "Changing Room", icon: Shirt },
+      { label: "Parking", icon: Car },
+      { label: "Air Conditioning", icon: Snowflake },
+      { label: "Drinking Water", icon: GlassWater },
+    ],
+  },
+  {
+    name: "Inclusivity & Accessibility",
+    features: [
+      { label: "Women-only Area / Timings", icon: Venus },
+      { label: "Wheelchair Accessible", icon: Accessibility },
+    ],
+  },
+];
+const FEATURE_COUNT = FEATURE_CATEGORIES.reduce((sum, category) => sum + category.features.length, 0);
+
+function FeaturesSheet({ open, onOpenChange, filters, onToggle, onClear }: { open: boolean; onOpenChange: (open: boolean) => void; filters: string[]; onToggle: (label: string) => void; onClear: () => void }) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-md">
+        <SheetHeader className="border-b border-border px-6 py-5 text-left">
+          <div className="flex items-center justify-between gap-4">
+            <SheetTitle className="font-display text-xl font-black uppercase">Features</SheetTitle>
+            <span className="text-xs font-semibold uppercase text-primary">See All ({FEATURE_COUNT})</span>
+          </div>
+          <SheetDescription>Star what matters. We&apos;ll match these across gyms.</SheetDescription>
+        </SheetHeader>
+        <ScrollArea className="flex-1 px-6 py-5">
+          <div className="space-y-8 pb-6">
+            {FEATURE_CATEGORIES.map((category) => (
+              <div key={category.name}>
+                <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">{category.name}</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {category.features.map(({ label, icon: Icon }) => {
+                    const active = filters.includes(label);
+                    return (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => onToggle(label)}
+                        className={cn("flex items-center justify-between gap-2 rounded-xl border px-3.5 py-3 text-left text-sm transition-colors", active ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground hover:border-primary/40")}
+                      >
+                        <span className="flex min-w-0 items-center gap-2"><Icon className="size-4 shrink-0"/> <span className="truncate">{label}</span></span>
+                        <Star className={cn("size-4 shrink-0", active ? "fill-primary text-primary" : "text-muted-foreground")}/>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
+        <SheetFooter className="gap-3 border-t border-border px-6 py-4 sm:justify-between">
+          <Button variant="ghost" onClick={onClear}>Clear all</Button>
+          <Button onClick={() => onOpenChange(false)}>Apply{filters.length ? ` (${filters.length})` : ""}</Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+type LatLonBounds = { minLat: number; maxLat: number; minLon: number; maxLon: number };
+
+// Projects a real lat/lon into percentage coordinates within the route map's
+// viewport, based on the bounding box of everything currently plotted (route
+// endpoints + gyms). Padded so points never sit flush against the map edge.
+function projectToMap(point: Coordinates, bounds: LatLonBounds): { leftPct: number; topPct: number } {
+  const latSpan = Math.max(bounds.maxLat - bounds.minLat, 0.002);
+  const lonSpan = Math.max(bounds.maxLon - bounds.minLon, 0.002);
+  const pad = 0.15;
+  const xRatio = (point.lon - bounds.minLon) / lonSpan;
+  const yRatio = 1 - (point.lat - bounds.minLat) / latSpan;
+  return {
+    leftPct: (pad + xRatio * (1 - 2 * pad)) * 100,
+    topPct: (pad + yRatio * (1 - 2 * pad)) * 100,
+  };
+}
+
 function NearbyGyms({ onBack, mode }: { onBack: () => void; mode: "near" | "route" }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [filters, setFilters] = useState<string[]>([]);
   const [locationText, setLocationText] = useState("");
+  const [routeStart, setRouteStart] = useState("");
+  const [routeEnd, setRouteEnd] = useState("");
+  const [routePoints, setRoutePoints] = useState<{ start: Coordinates; end: Coordinates } | null>(null);
   const [gyms, setGyms] = useState<GymResult[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [featuresOpen, setFeaturesOpen] = useState(false);
+  const [mapZoom, setMapZoom] = useState(1);
+  const [mapPan, setMapPan] = useState({ x: 0, y: 0 });
+  const mapViewportRef = useRef<HTMLDivElement | null>(null);
+  const mapDragRef = useRef<{ x: number; y: number } | null>(null);
   const toggleFilter = (filter: string) => setFilters((current) => current.includes(filter) ? current.filter((item) => item !== filter) : [...current, filter]);
+  const cardRefs = useRef<Record<string, HTMLElement | null>>({});
+  const clampMapPan = (pan: { x: number; y: number }, zoom: number) => {
+    const bound = (zoom - 1) * 160;
+    return { x: Math.min(bound, Math.max(-bound, pan.x)), y: Math.min(bound, Math.max(-bound, pan.y)) };
+  };
+  const zoomMapBy = (delta: number) => {
+    setMapZoom((zoom) => {
+      const next = Math.min(3, Math.max(1, zoom + delta));
+      if (next === 1) setMapPan({ x: 0, y: 0 });
+      else setMapPan((pan) => clampMapPan(pan, next));
+      return next;
+    });
+  };
+  const handleMapPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (mapZoom <= 1) return;
+    mapDragRef.current = { x: event.clientX, y: event.clientY };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const handleMapPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!mapDragRef.current) return;
+    const dx = event.clientX - mapDragRef.current.x;
+    const dy = event.clientY - mapDragRef.current.y;
+    mapDragRef.current = { x: event.clientX, y: event.clientY };
+    setMapPan((pan) => clampMapPan({ x: pan.x + dx, y: pan.y + dy }, mapZoom));
+  };
+  const handleMapPointerUp = () => { mapDragRef.current = null; };
+  const selectGym = (id: string) => {
+    setSelected(id);
+    cardRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
 
   const runSearch = async (point: Coordinates) => {
     setStatus("loading");
@@ -350,10 +581,75 @@ function NearbyGyms({ onBack, mode }: { onBack: () => void; mode: "near" | "rout
     }
   };
 
+  const handleRouteSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!routeStart.trim() || !routeEnd.trim()) return;
+    setStatus("loading");
+    setError(null);
+    try {
+      const [start, end] = await Promise.all([geocodeAddress(routeStart), geocodeAddress(routeEnd)]);
+      if (!start || !end) {
+        setError(`Couldn't find the ${!start ? "start" : "end"} location. Try a different search.`);
+        setStatus("error");
+        return;
+      }
+      setRoutePoints({ start, end });
+      const results = await fetchGymsAlongRoute(start, end);
+      setGyms(results);
+      setSelected(results[0]?.id ?? null);
+      setStatus("idle");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Route search failed.");
+      setStatus("error");
+    }
+  };
+
+  const locateRouteStart = async () => {
+    setStatus("loading");
+    setError(null);
+    try {
+      const point = await getCurrentPosition();
+      const address = await reverseGeocode(point).catch(() => `${point.lat.toFixed(4)}, ${point.lon.toFixed(4)}`);
+      setRouteStart(address);
+      setStatus("idle");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't get your location.");
+      setStatus("error");
+    }
+  };
+
+  // Bounding box of everything the route map needs to plot, recomputed whenever
+  // the endpoints or results change; null outside route mode so near-me search
+  // keeps its existing (non-geo) marker layout untouched.
+  const routeBounds = useMemo<LatLonBounds | null>(() => {
+    if (mode !== "route" || !routePoints) return null;
+    const points = [routePoints.start, routePoints.end, ...gyms];
+    return {
+      minLat: Math.min(...points.map((p) => p.lat)),
+      maxLat: Math.max(...points.map((p) => p.lat)),
+      minLon: Math.min(...points.map((p) => p.lon)),
+      maxLon: Math.max(...points.map((p) => p.lon)),
+    };
+  }, [mode, routePoints, gyms]);
+
   useEffect(() => {
     if (mode === "near") locate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
+
+  // React makes wheel listeners passive by default, which blocks preventDefault().
+  // Attach a native listener instead so scrolling to zoom doesn't also scroll the page.
+  useEffect(() => {
+    const node = mapViewportRef.current;
+    if (!node) return;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      zoomMapBy(event.deltaY > 0 ? -0.3 : 0.3);
+    };
+    node.addEventListener("wheel", onWheel, { passive: false });
+    return () => node.removeEventListener("wheel", onWheel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapZoom]);
 
   return (
     <div className="min-h-screen pb-24">
@@ -366,65 +662,141 @@ function NearbyGyms({ onBack, mode }: { onBack: () => void; mode: "near" | "rout
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-[1440px] gap-10 px-6 pt-10 lg:grid-cols-[1.05fr_0.95fr] lg:px-[4vw]">
+      <div className="mx-auto grid max-w-[1440px] gap-10 px-6 pt-10 lg:px-[4vw]">
         <section>
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div>
-              <h1 className="font-display text-[clamp(2.2rem,4vw,3.6rem)] font-black leading-[1.02]">Find Gyms<br /><span className="text-primary">Near You</span></h1>
-              <p className="mt-4 max-w-xs text-sm leading-6 text-muted-foreground">{mode === "near" ? "Real gyms around your current location," : "Search a location to find real gyms nearby,"} powered by OpenStreetMap.</p>
+              <h1 className="font-display text-[clamp(2.2rem,4vw,3.6rem)] font-black leading-[1.02]">Find Gyms<br /><span className="text-primary">{mode === "route" ? "On Your Route" : "Near You"}</span></h1>
+              <p className="mt-4 max-w-xs text-sm leading-6 text-muted-foreground">{mode === "route" ? "Real gyms along the route between your start and end points," : mode === "near" ? "Real gyms around your current location," : "Search a location to find real gyms nearby,"} powered by OpenStreetMap.</p>
             </div>
-            <form onSubmit={handleLocationSubmit} className="flex h-12 w-full max-w-[300px] items-center gap-3 rounded-full border border-border bg-card px-5">
-              <MapPin className="size-4 shrink-0 text-primary"/>
-              <input value={locationText} onChange={(event) => setLocationText(event.target.value)} placeholder="Enter a location" className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground" aria-label="Location"/>
-              <button type="button" onClick={locate} aria-label="Use my current location"><Crosshair className="size-4 shrink-0 text-muted-foreground hover:text-primary"/></button>
-            </form>
+            {mode === "route" ? (
+              <form onSubmit={handleRouteSubmit} className="flex w-full max-w-[340px] flex-col gap-2.5">
+                <div className="flex h-12 items-center gap-3 rounded-full border border-border bg-card px-5">
+                  <MapPin className="size-4 shrink-0 text-primary"/>
+                  <input value={routeStart} onChange={(event) => setRouteStart(event.target.value)} placeholder="Start point (A)" className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground" aria-label="Start point"/>
+                  <button type="button" onClick={locateRouteStart} aria-label="Use my current location as start"><Crosshair className="size-4 shrink-0 text-muted-foreground hover:text-primary"/></button>
+                </div>
+                <div className="flex h-12 items-center gap-3 rounded-full border border-border bg-card px-5">
+                  <MapPin className="size-4 shrink-0 text-primary"/>
+                  <input value={routeEnd} onChange={(event) => setRouteEnd(event.target.value)} placeholder="End point (B)" className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground" aria-label="End point"/>
+                </div>
+                <ArrowButton type="submit" size="sm" className="self-end">Search</ArrowButton>
+              </form>
+            ) : (
+              <form onSubmit={handleLocationSubmit} className="flex h-12 w-full max-w-[300px] items-center gap-3 rounded-full border border-border bg-card px-5">
+                <MapPin className="size-4 shrink-0 text-primary"/>
+                <input value={locationText} onChange={(event) => setLocationText(event.target.value)} placeholder="Enter a location" className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground" aria-label="Location"/>
+                <button type="button" onClick={locate} aria-label="Use my current location"><Crosshair className="size-4 shrink-0 text-muted-foreground hover:text-primary"/></button>
+              </form>
+            )}
           </div>
 
           <div className="mt-8 flex flex-wrap items-center gap-6 rounded-full border border-border px-5 py-2.5 text-xs text-muted-foreground">
-            <span className="flex items-center gap-2"><span className="size-2.5 rounded-full bg-sky-400"/> You</span>
+            <span className="flex items-center gap-2"><span className="size-2.5 rounded-full bg-sky-400"/> {mode === "route" ? "Start" : "You"}</span>
+            {mode === "route" && <span className="flex items-center gap-2"><span className="size-2.5 rounded-full bg-orange-400"/> End</span>}
             <span className="flex items-center gap-2"><span className="size-2.5 rounded-full bg-foreground"/> Gyms</span>
             <span className="flex items-center gap-2"><span className="size-2.5 rounded-full bg-primary"/> Selected</span>
           </div>
 
-          <div className="route-map relative mt-6 h-[380px] overflow-hidden rounded-2xl border border-border sm:h-[440px]">
-            <svg viewBox="0 0 700 440" className="h-full w-full" fill="none" aria-hidden="true">
-              <rect width="700" height="440" className="fill-card"/>
-              <g stroke="currentColor" strokeWidth="6" className="text-border/40">
-                <path d="M-20 120 L180 100 L320 180 L520 150 L720 200"/>
-                <path d="M120 -20 L160 140 L140 320 L220 460"/>
-                <path d="M320 180 L360 340 L340 460"/>
-                <path d="M520 150 L560 320 L500 460"/>
-                <path d="M-20 300 L140 320 L360 340 L560 320 L720 360"/>
-              </g>
-              <g stroke="currentColor" strokeWidth="2" className="text-border/30">
-                <path d="M240 -20 L260 120 L320 180"/><path d="M420 -20 L460 80 L520 150"/><path d="M60 440 L140 320"/>
-              </g>
-            </svg>
+          <div ref={mapViewportRef} className="route-map relative mt-6 h-[380px] overflow-hidden rounded-2xl border border-border sm:h-[440px]">
+            <div
+              className={cn("absolute inset-0", mapZoom > 1 && "cursor-grab active:cursor-grabbing")}
+              style={{ transform: `translate(${mapPan.x}px, ${mapPan.y}px) scale(${mapZoom})`, transformOrigin: "center center" }}
+              onPointerDown={handleMapPointerDown}
+              onPointerMove={handleMapPointerMove}
+              onPointerUp={handleMapPointerUp}
+              onPointerLeave={handleMapPointerUp}
+            >
+              <svg viewBox="0 0 700 440" className="h-full w-full" fill="none" aria-hidden="true">
+                <rect width="700" height="440" className="fill-card"/>
+                <g stroke="currentColor" strokeWidth="6" className="text-border/40">
+                  <path d="M-20 120 L180 100 L320 180 L520 150 L720 200"/>
+                  <path d="M120 -20 L160 140 L140 320 L220 460"/>
+                  <path d="M320 180 L360 340 L340 460"/>
+                  <path d="M520 150 L560 320 L500 460"/>
+                  <path d="M-20 300 L140 320 L360 340 L560 320 L720 360"/>
+                </g>
+                <g stroke="currentColor" strokeWidth="2" className="text-border/30">
+                  <path d="M240 -20 L260 120 L320 180"/><path d="M420 -20 L460 80 L520 150"/><path d="M60 440 L140 320"/>
+                </g>
+              </svg>
+              {mode === "near" && locationText && (
+                <span className="absolute left-[42%] top-[8%] -translate-x-1/2 text-center text-xs font-semibold uppercase text-muted-foreground">
+                  {locationText.split(",")[0]}
+                </span>
+              )}
+              {mode === "near" && (
+                <span className="absolute left-[50%] top-[58%] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center"><span className="absolute size-16 animate-ping rounded-full bg-sky-400/20"/><span className="size-8 rounded-full border-4 border-sky-400/40 bg-sky-400 shadow-[0_0_24px_rgba(56,189,248,0.8)]"/></span>
+              )}
+              {mode === "route" && routeBounds && routePoints && (() => {
+                const startPos = projectToMap(routePoints.start, routeBounds);
+                const endPos = projectToMap(routePoints.end, routeBounds);
+                return (
+                  <>
+                    <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 700 440" fill="none" aria-hidden="true">
+                      <line x1={(startPos.leftPct / 100) * 700} y1={(startPos.topPct / 100) * 440} x2={(endPos.leftPct / 100) * 700} y2={(endPos.topPct / 100) * 440} stroke="currentColor" strokeWidth="3" strokeDasharray="10 10" className="text-primary"/>
+                    </svg>
+                    <span className="absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center" style={{ left: `${startPos.leftPct}%`, top: `${startPos.topPct}%` }}>
+                      <span className="absolute size-16 animate-ping rounded-full bg-sky-400/20"/>
+                      <span className="size-8 rounded-full border-4 border-sky-400/40 bg-sky-400 shadow-[0_0_24px_rgba(56,189,248,0.8)]"/>
+                      <span className="absolute top-full mt-1 text-[10px] font-semibold uppercase text-muted-foreground">A · {routeStart.split(",")[0]}</span>
+                    </span>
+                    <span className="absolute -translate-x-1/2 -translate-y-full" style={{ left: `${endPos.leftPct}%`, top: `${endPos.topPct}%` }}>
+                      <MapPin className="mx-auto size-8 fill-orange-400 text-orange-400 drop-shadow-[0_0_10px_rgba(251,146,60,0.8)]" fill="currentColor"/>
+                      <span className="absolute top-1 left-full ml-1 max-w-[8rem] text-[10px] font-semibold uppercase leading-tight text-muted-foreground">B · {routeEnd.split(",")[0]}</span>
+                    </span>
+                  </>
+                );
+              })()}
+              {(mode === "route" ? gyms.slice(0, 10) : gyms.slice(0, 4)).map((gym, index) => {
+                const isSelected = gym.id === selected;
+                let left: string;
+                let top: string;
+                let labelOnLeft: boolean;
+                if (mode === "route" && routeBounds) {
+                  const pos = projectToMap(gym, routeBounds);
+                  left = `${pos.leftPct}%`;
+                  top = `${pos.topPct}%`;
+                  labelOnLeft = pos.leftPct > 60;
+                } else {
+                  left = `${20 + ((index * 37) % 60)}%`;
+                  top = `${20 + ((index * 53) % 60)}%`;
+                  labelOnLeft = index % 2 === 1;
+                }
+                return (
+                  <button
+                    key={gym.id}
+                    type="button"
+                    onClick={() => selectGym(gym.id)}
+                    className="absolute -translate-x-1/2 -translate-y-full border-0 bg-transparent p-0"
+                    style={{ left, top }}
+                    aria-label={`Show ${gym.name} in the list below`}
+                  >
+                    <MapPin className={cn("mx-auto size-8", isSelected ? "fill-primary text-primary drop-shadow-[0_0_10px_var(--primary)]" : "fill-foreground text-foreground")} fill="currentColor"/>
+                    <span className={cn("absolute top-1 max-w-[9rem] text-xs leading-tight text-muted-foreground", labelOnLeft ? "right-full mr-2 text-right" : "left-full ml-2 text-left")}>
+                      {gym.name}
+                      {isSelected && <><br /><span className="text-[10px] text-primary">Selected</span></>}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
             {status === "loading" && <div className="absolute inset-0 grid place-items-center bg-background/60 text-sm text-muted-foreground">Searching real gyms…</div>}
             {status === "error" && <div className="absolute inset-0 grid place-items-center bg-background/60 px-8 text-center text-sm text-destructive">{error}</div>}
-            {locationText && (
-              <span className="absolute left-[42%] top-[8%] -translate-x-1/2 text-center text-xs font-semibold uppercase text-muted-foreground">
-                {locationText.split(",")[0]}
-              </span>
-            )}
-            <span className="absolute left-[50%] top-[58%] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center"><span className="absolute size-16 animate-ping rounded-full bg-sky-400/20"/><span className="size-8 rounded-full border-4 border-sky-400/40 bg-sky-400 shadow-[0_0_24px_rgba(56,189,248,0.8)]"/></span>
-            {gyms.slice(0, 4).map((gym, index) => {
-              const left = `${20 + ((index * 37) % 60)}%`;
-              const top = `${20 + ((index * 53) % 60)}%`;
-              const isSelected = gym.id === selected;
-              const labelOnLeft = index % 2 === 1;
-              return (
-                <span key={gym.id} className="absolute -translate-x-1/2 -translate-y-full" style={{ left, top }}>
-                  <MapPin className={cn("mx-auto size-8", isSelected ? "fill-primary text-primary drop-shadow-[0_0_10px_var(--primary)]" : "fill-foreground text-foreground")} fill="currentColor"/>
-                  <span className={cn("absolute top-1 max-w-[9rem] text-xs leading-tight text-muted-foreground", labelOnLeft ? "right-full mr-2 text-right" : "left-full ml-2 text-left")}>
-                    {gym.name}
-                    {isSelected && <><br /><span className="text-[10px] text-primary">Selected</span></>}
-                  </span>
-                </span>
-              );
-            })}
             <div className="absolute right-5 top-5 grid size-11 place-items-center rounded-full bg-card/90 text-xs font-bold shadow-lg">N<span className="absolute -top-1 text-primary">▲</span></div>
-            <Button variant="outline" size="icon" className="absolute bottom-5 right-5 size-12 rounded-full bg-card/90" aria-label="Recenter on my location" onClick={locate}><Navigation className="size-5 text-primary"/></Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="absolute bottom-5 right-5 size-12 rounded-full bg-card/90"
+              aria-label={mode === "route" ? "Fit route in view" : "Recenter on my location"}
+              onClick={mode === "route" ? () => { setMapZoom(1); setMapPan({ x: 0, y: 0 }); } : locate}
+            >
+              <Navigation className="size-5 text-primary"/>
+            </Button>
+            <div className="absolute bottom-5 left-5 flex flex-col gap-2">
+              <Button variant="outline" size="icon" className="size-10 rounded-full bg-card/90" aria-label="Zoom in" onClick={() => zoomMapBy(0.5)}><ZoomIn className="size-4 text-primary"/></Button>
+              <Button variant="outline" size="icon" className="size-10 rounded-full bg-card/90" aria-label="Zoom out" onClick={() => zoomMapBy(-0.5)}><ZoomOut className="size-4 text-primary"/></Button>
+            </div>
           </div>
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -434,7 +806,7 @@ function NearbyGyms({ onBack, mode }: { onBack: () => void; mode: "near" | "rout
               return <button key={label as string} onClick={() => toggleFilter(label as string)} className={cn("flex items-center gap-2 rounded-full border px-5 py-2.5 text-sm transition-colors", active ? "border-primary text-primary" : "border-border text-foreground hover:border-primary/50")}><LucideIcon className="size-4"/> {label as string}</button>;
             })}
             <div className="ml-auto flex items-center gap-4">
-              <button className="text-primary" aria-label="Filter"><Filter className="size-5"/></button>
+              <button className="text-primary" aria-label="Filter" onClick={() => setFeaturesOpen(true)}><Filter className="size-5"/></button>
               <button className="flex items-center gap-2 text-sm font-semibold uppercase text-primary">Closest <ArrowUpDown className="size-4"/></button>
             </div>
           </div>
@@ -442,18 +814,22 @@ function NearbyGyms({ onBack, mode }: { onBack: () => void; mode: "near" | "rout
 
         <aside>
           <div className="flex items-baseline justify-between">
-            <h2 className="font-display text-2xl font-bold">Gyms Around <span className="text-primary">You</span></h2>
+            <h2 className="font-display text-2xl font-bold">{mode === "route" ? <>Gyms Along <span className="text-primary">Your Route</span></> : <>Gyms Around <span className="text-primary">You</span></>}</h2>
             <span className="font-mono text-xs uppercase text-primary">{status === "loading" ? "Searching…" : `${gyms.length} found`}</span>
           </div>
           <div className="mt-6 space-y-5">
             {status === "error" && <p className="rounded-2xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">{error}</p>}
-            {status === "idle" && gyms.length === 0 && <p className="rounded-2xl border border-border bg-card/40 p-5 text-sm text-muted-foreground">No gyms found near that location. Try a different search.</p>}
+            {status === "idle" && gyms.length === 0 && (
+              <p className="rounded-2xl border border-border bg-card/40 p-5 text-sm text-muted-foreground">
+                {mode === "route" ? routePoints ? "No gyms found along that route. Try different points." : "Enter a start and end point to search." : "No gyms found near that location. Try a different search."}
+              </p>
+            )}
             {gyms.map((gym, index) => {
               const active = selected === gym.id;
               const image = index % 2 === 0 ? gymImage : gymImage2;
               const { rating, monthly, daily, open } = mockListingDetails(gym.id);
               return (
-                <article key={gym.id} onClick={() => setSelected(gym.id)} className={cn("cursor-pointer rounded-2xl border p-5 transition-colors", active ? "border-primary bg-primary/5 shadow-[0_0_30px_-10px_var(--primary)]" : "border-border bg-card/40 hover:border-primary/40")}>
+                <article key={gym.id} ref={(el) => { cardRefs.current[gym.id] = el; }} onClick={() => setSelected(gym.id)} className={cn("cursor-pointer rounded-2xl border p-5 transition-colors", active ? "border-primary bg-primary/5 shadow-[0_0_30px_-10px_var(--primary)]" : "border-border bg-card/40 hover:border-primary/40")}>
                   <div className="flex gap-5">
                     <img src={image} alt={gym.name} width={640} height={512} loading="lazy" className="size-24 shrink-0 rounded-xl object-cover"/>
                     <div className="min-w-0 flex-1">
@@ -480,6 +856,8 @@ function NearbyGyms({ onBack, mode }: { onBack: () => void; mode: "near" | "rout
           return <div key={title as string} className="flex items-center gap-4"><LucideIcon className="size-7 text-primary"/><div><p className="text-sm font-semibold">{title as string}</p><p className="text-xs text-muted-foreground">{text as string}</p></div></div>;
         })}
       </footer>
+
+      <FeaturesSheet open={featuresOpen} onOpenChange={setFeaturesOpen} filters={filters} onToggle={toggleFilter} onClear={() => setFilters([])}/>
     </div>
   );
 }

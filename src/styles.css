@@ -156,14 +156,3 @@
   background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
   background-size: 32px 32px;
 }
-
-.light-preview {
-  --background: oklch(0.96 0.01 120);
-  --foreground: oklch(0.15 0 0);
-  --card: oklch(0.92 0.01 120);
-  --card-foreground: oklch(0.15 0 0);
-  --muted-foreground: oklch(0.4 0 0);
-  --border: oklch(0.76 0.02 120);
-  --input: oklch(0.65 0.02 120);
-  --map: oklch(0.25 0.02 125);
-}
