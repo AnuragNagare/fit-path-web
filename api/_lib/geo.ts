@@ -321,7 +321,9 @@ export async function countGymsInIndia(): Promise<number> {
         body: `data=${encodeURIComponent(query)}`,
       });
       if (!res.ok) continue;
-      const data = (await res.json()) as { elements?: Array<{ tags?: { total?: string } }> };
+      const data = (await res.json()) as { elements?: Array<{ tags?: { total?: string } }>; remark?: string };
+      // A query cut short (time or memory limit) still answers 200, with a partial count and a remark.
+      if (data.remark) continue;
       const total = Number(data.elements?.[0]?.tags?.total);
       if (Number.isFinite(total) && total > 0) return total;
     } catch {
