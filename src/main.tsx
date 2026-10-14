@@ -6,8 +6,8 @@ import './index.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ClerkProvider afterSignOutUrl="/">
-<App />
-</ClerkProvider>
+    <ClerkProvider afterSignOutUrl="/" appearance={{ variables: { colorPrimary: '#FF5A0F', colorForeground: '#12161F' } }}>
+      <App />
+    </ClerkProvider>
   </StrictMode>
 );

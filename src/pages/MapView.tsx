@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
-import { MapContainer, TileLayer, Marker, Polyline, Circle, CircleMarker, Tooltip, useMap, useMapEvents } from 'react-leaflet';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { MapContainer, TileLayer, Marker, Circle, CircleMarker, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { UserButton } from '@clerk/react';
 import { ArrowDownUp, Dumbbell, Filter, Pencil, Star, Users, X } from 'lucide-react';
-import type { RouteQuery, Gym, RouteInfo } from '@/types';
+import type { SearchQuery, Gym } from '@/types';
 import { FEATURE_LABELS } from '@/data/features';
 import { useApi } from '@/lib/api';
-import { mockPrices, mockRating } from '@/lib/mock';
+import { useCurrency } from '@/lib/currency-context';
+import { useIsAdmin } from '@/lib/useIsAdmin';
+import { useIsVendor } from '@/lib/useIsVendor';
 import { useStoredFeatures } from '@/lib/useStoredQuery';
 import FilterPanel from '@/components/FilterPanel';
+import CurrencyPicker from '@/components/CurrencyPicker';
 
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
@@ -18,7 +21,7 @@ delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIcon
 L.Icon.Default.mergeOptions({ iconUrl: markerIcon, iconRetinaUrl: markerIcon2x, shadowUrl: markerShadow });
 
 // Matches DEFAULT_RADIUS_KM in api/gyms.ts.
-const NEARBY_RADIUS_KM = 3;
+const SEARCH_RADIUS_KM = 10;
 
 type SortMode = 'closest' | 'az';
 
@@ -31,19 +34,12 @@ function makeIcon(active: boolean) {
   });
 }
 
-// Fits the whole route, or the 3 km search circle in nearby mode.
-function FitSearch({ query, route }: { query: RouteQuery; route: RouteInfo | null }) {
+// Fits the search circle.
+function FitSearch({ query }: { query: SearchQuery }) {
   const map = useMap();
   useEffect(() => {
-    if (query.to) {
-      map.fitBounds(route?.coordinates ?? [[query.from.lat, query.from.lon], [query.to.lat, query.to.lon]], {
-        padding: [60, 60],
-        maxZoom: 15,
-      });
-    } else {
-      map.fitBounds(L.latLng(query.from.lat, query.from.lon).toBounds(NEARBY_RADIUS_KM * 2000), { padding: [8, 8] });
-    }
-  }, [query, route, map]);
+    map.fitBounds(L.latLng(query.place.lat, query.place.lon).toBounds(SEARCH_RADIUS_KM * 2000), { padding: [8, 8] });
+  }, [query, map]);
   return null;
 }
 
@@ -61,14 +57,16 @@ function MapClickAway({ onClick }: { onClick: () => void }) {
 }
 
 interface Props {
-  query: RouteQuery | null;
+  query: SearchQuery | null;
 }
 
 export default function MapView({ query }: Props) {
   const navigate = useNavigate();
   const { searchGyms } = useApi();
+  const { format } = useCurrency();
+  const isAdmin = useIsAdmin();
+  const isVendor = useIsVendor();
   const [gyms, setGyms] = useState<Gym[]>([]);
-  const [route, setRoute] = useState<RouteInfo | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState('');
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -85,7 +83,7 @@ export default function MapView({ query }: Props) {
     setStatus('loading');
     setActiveId(null);
     searchGyms(query)
-      .then(result => { if (!cancelled) { setGyms(result.gyms); setRoute(result.route); setStatus('ready'); } })
+      .then(result => { if (!cancelled) { setGyms(result.gyms); setStatus('ready'); } })
       .catch(err => {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : 'Could not load gyms.');
@@ -118,11 +116,10 @@ export default function MapView({ query }: Props) {
 
   if (!query) return <Navigate to="/plan" replace />;
 
-  const nearby = !query.to;
-  const placeLabel = query.from.label === 'My location' ? 'Your location' : query.from.label;
+  const placeLabel = query.place.label === 'My location' ? 'Your location' : query.place.label;
 
   function openGym(gym: Gym) {
-    navigate(`/gym/${gym.id}`, { state: { selectedFeatures: Array.from(selectedFeatures), gym, nearby } });
+    navigate(`/gym/${gym.id}`, { state: { gym } });
   }
 
   function toggleFeature(id: string) {
@@ -133,27 +130,23 @@ export default function MapView({ query }: Props) {
     });
   }
 
-  let subtitle = placeLabel;
-  if (query.to) {
-    subtitle = `${query.from.label} → ${query.to.label}`;
-    if (route?.type === 'road') {
-      subtitle += ` · ${route.distanceKm} km${route.durationMin !== null ? ` · ${route.durationMin} min drive` : ''}`;
-    } else if (route) {
-      subtitle += ' · straight-line route (road routing unavailable)';
-    }
-  }
-
   return (
     <div className="site map-site">
       <header className="map-header">
-        <a className="brand" href="/" aria-label="Trace home">Tra<span>ce</span></a>
-        <UserButton />
+        <a className="brand" href="/" aria-label="FitPath home">Fit<span>Path</span></a>
+        <div className="header-right">
+          {isAdmin && <Link className="header-link" to="/admin">Admin</Link>}
+          {isVendor && <Link className="header-link" to="/vendor">My gym</Link>}
+          <Link className="header-link" to="/bookings">My bookings</Link>
+          <CurrencyPicker />
+          <UserButton />
+        </div>
       </header>
 
       {/* Map (unchanged) */}
       <div className="leaflet-wrap">
         <MapContainer
-          center={[query.from.lat, query.from.lon]}
+          center={[query.place.lat, query.place.lon]}
           zoom={13}
           scrollWheelZoom
           style={{ width: '100%', height: '100%' }}
@@ -162,29 +155,17 @@ export default function MapView({ query }: Props) {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          <FitSearch query={query} route={route} />
+          <FitSearch query={query} />
           <PanToGym gym={activeGym} />
           <MapClickAway onClick={() => setActiveId(null)} />
 
-          {query.to ? (
-            <>
-              <Polyline
-                positions={route?.coordinates ?? [[query.from.lat, query.from.lon], [query.to.lat, query.to.lon]]}
-                pathOptions={route?.type === 'road' ? { color: '#b8ff14', weight: 5 } : { color: '#b8ff14', weight: 4, dashArray: '10 10' }}
-              />
-              <CircleMarker center={[query.to.lat, query.to.lon]} radius={8} pathOptions={{ color: '#0b0c0c', fillColor: '#ffffff', fillOpacity: 1 }}>
-                <Tooltip>End: {query.to.label}</Tooltip>
-              </CircleMarker>
-            </>
-          ) : (
-            <Circle
-              center={[query.from.lat, query.from.lon]}
-              radius={NEARBY_RADIUS_KM * 1000}
-              pathOptions={{ color: '#b8ff14', weight: 2, dashArray: '8 8', fillColor: '#b8ff14', fillOpacity: 0.05 }}
-            />
-          )}
-          <CircleMarker center={[query.from.lat, query.from.lon]} radius={8} pathOptions={{ color: '#0b0c0c', fillColor: '#b8ff14', fillOpacity: 1 }}>
-            <Tooltip>{query.to ? `Start: ${query.from.label}` : query.from.label}</Tooltip>
+          <Circle
+            center={[query.place.lat, query.place.lon]}
+            radius={SEARCH_RADIUS_KM * 1000}
+            pathOptions={{ color: '#FF5A0F', weight: 2, dashArray: '8 8', fillColor: '#FF5A0F', fillOpacity: 0.05 }}
+          />
+          <CircleMarker center={[query.place.lat, query.place.lon]} radius={8} pathOptions={{ color: '#ffffff', weight: 3, fillColor: '#FF5A0F', fillOpacity: 1 }}>
+            <Tooltip>{query.place.label}</Tooltip>
           </CircleMarker>
 
           {visibleGyms.map(gym => (
@@ -203,15 +184,14 @@ export default function MapView({ query }: Props) {
         <div className="results-head">
           <div className="results-title">
             <div className="results-title-row">
-              <h2>{nearby ? 'Gyms around you' : 'Gyms on your route'}</h2>
+              <h2>Gyms near {placeLabel}</h2>
               <button type="button" className="edit-pill" onClick={() => navigate('/plan')}>
                 Edit <Pencil size={14} />
               </button>
             </div>
-            <p className="results-sub">{subtitle}</p>
+            <p className="results-sub">Within {SEARCH_RADIUS_KM} km</p>
             <p className="results-trip">
               <Users size={14} /> {query.people} {query.people === 1 ? 'person' : 'people'}
-              {query.startDate && <> · {query.startDate}{query.endDate ? ` → ${query.endDate}` : ''}</>}
             </p>
           </div>
           <span className="results-count">
@@ -249,7 +229,7 @@ export default function MapView({ query }: Props) {
         </div>
 
         <div className="result-rows">
-          {status === 'loading' && <p className="listing-empty">{nearby ? 'Finding gyms near you…' : 'Finding gyms along your route…'}</p>}
+          {status === 'loading' && <p className="listing-empty">Finding gyms near {placeLabel}…</p>}
           {status === 'error' && (
             <div className="listing-empty">
               <p>{error}</p>
@@ -260,9 +240,7 @@ export default function MapView({ query }: Props) {
             <p className="listing-empty">
               {gyms.length > 0
                 ? 'No gyms match all selected features. Remove a filter to see more.'
-                : nearby
-                  ? `No gyms found within ${NEARBY_RADIUS_KM} km. Add a destination or try a different starting point.`
-                  : 'No gyms found along this route. Try a longer route or different places.'}
+                : `No gyms found within ${SEARCH_RADIUS_KM} km of ${placeLabel}. Try a nearby area or a bigger city.`}
             </p>
           )}
           {status === 'ready' && listedGyms.map(gym => {
@@ -279,7 +257,9 @@ export default function MapView({ query }: Props) {
                 onKeyDown={e => e.key === 'Enter' && openGym(gym)}
                 aria-label={`${gym.name}, open profile`}
               >
-                <div className="gym-row-photo" aria-hidden="true"><Dumbbell size={30} /></div>
+                <div className="gym-row-photo" aria-hidden="true">
+                  {gym.images[0] ? <img src={gym.images[0].url} alt="" loading="lazy" /> : <Dumbbell size={30} />}
+                </div>
                 <div className="gym-row-main">
                   <strong>{gym.name}</strong>
                   <span className="gym-row-area">{gym.area ?? 'Area not listed'}</span>
@@ -292,10 +272,13 @@ export default function MapView({ query }: Props) {
                 <div className="gym-row-side">
                   <b className="gym-row-dist">{gym.distanceKm} km</b>
                   <span className="gym-row-meta">
-                    {mockRating(gym.id)} <Star size={13} fill="currentColor" />
+                    {gym.rating !== null ? <>{gym.rating} <Star size={13} fill="currentColor" /></> : 'No reviews yet'}
                     {meta.length > 0 && <span>{meta.join(' • ')}</span>}
                   </span>
-                  <span className="gym-row-price">{mockPrices(gym.id).month}/mo <i>|</i> {mockPrices(gym.id).day}/day</span>
+                  <span className="gym-row-price">
+                    {format(gym.prices.month)}/mo <i>|</i> {format(gym.prices.day)}/day
+                    {!(gym.bookable.includes('month') && gym.bookable.includes('day')) && <small className="gym-row-sample" title="This gym has not set its prices yet">sample</small>}
+                  </span>
                 </div>
               </article>
             );

@@ -24,7 +24,3 @@ dist-ssr
 
 # Vercel
 .vercel
-
-# Local tool settings
-.claude/
-.serena/

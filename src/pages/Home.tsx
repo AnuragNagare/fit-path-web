@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Camera, Dumbbell, MapPin, Play, Search, Star } from 'lucide-react';
 import { UserButton, useUser } from '@clerk/react';
-import { MOCK_AVG_RATING } from '@/lib/mock';
 
 const gymImages = [
   'https://images.pexels.com/photos/9545914/pexels-photo-9545914.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
@@ -50,10 +49,9 @@ export default function Home() {
   return (
     <main className="site">
       <header className="topbar">
-        <a className="brand" href="/" aria-label="Trace home">Tra<span>ce</span></a>
+        <a className="brand" href="/" aria-label="FitPath home">Fit<span>Path</span></a>
         <nav className="nav" aria-label="Main navigation">
           <button type="button" className="active" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>Home</button>
-          <button type="button" onClick={() => navigate(startPath)}>Routes</button>
           <button type="button" onClick={() => scrollToId('features')}>Features</button>
           <button type="button" onClick={() => scrollToId('about')}>About</button>
         </nav>
@@ -81,26 +79,26 @@ export default function Home() {
         <span className="hero-route-dot" aria-hidden="true" />
 
         <div className="hero-copy">
-          <p className="eyebrow">Route-based discovery</p>
+          <p className="eyebrow">Gym discovery</p>
           <h1>Find<br />gyms<br /><span>wherever</span><br />you go.</h1>
-          <p className="lede">Complete details, honest photos, gyms that fit the route you already travel, not just the one nearest your pin.</p>
+          <p className="lede">Opening hours, facilities and contact details for gyms in any area, or within 10 km of where you are right now.</p>
           <button className="pill-button hero-button" onClick={() => navigate(startPath)}>
-            Find gyms on my route <Play size={22} fill="currentColor" />
+            Find gyms near me <Play size={22} fill="currentColor" />
           </button>
         </div>
 
-        <div className="hero-visual" aria-label="Trace app preview">
+        <div className="hero-visual" aria-label="FitPath app preview">
           <div className="phone">
             <div className="phone-screen">
-              <div className="phone-search"><Search size={13} /> <span>Gyms on my route</span><Search size={13} /></div>
+              <div className="phone-search"><Search size={13} /> <span>Gyms near me</span><Search size={13} /></div>
               <ArrowLeft className="phone-back" size={15} />
               <div className="map-area">
                 <svg className="phone-map" viewBox="0 0 300 170" fill="none" aria-hidden="true">
-                  <path d="M-10 40 L120 70 L180 20 M60 170 L95 60 L150 110 L310 80 M200 170 L230 95 L310 120 M150 110 L170 170" stroke="#3a3f3c" strokeWidth="5" />
-                  <path d="M-10 120 C60 100 90 140 140 130 M240 -10 L265 60 L310 50" stroke="#2e3330" strokeWidth="3" />
-                  <path d="M120 95 C140 70 160 60 185 55 C200 52 205 42 210 34" stroke="#b8ff14" strokeWidth="4" strokeLinecap="round" />
-                  <circle cx="120" cy="95" r="8" fill="#151716" stroke="#b8ff14" strokeWidth="4" />
-                  <circle cx="211" cy="33" r="8" fill="#151716" stroke="#b8ff14" strokeWidth="4" />
+                  <path d="M-10 40 L120 70 L180 20 M60 170 L95 60 L150 110 L310 80 M200 170 L230 95 L310 120 M150 110 L170 170" stroke="#D5DAE2" strokeWidth="5" />
+                  <path d="M-10 120 C60 100 90 140 140 130 M240 -10 L265 60 L310 50" stroke="#E4E8EE" strokeWidth="3" />
+                  <path d="M120 95 C140 70 160 60 185 55 C200 52 205 42 210 34" stroke="#FF5A0F" strokeWidth="4" strokeLinecap="round" />
+                  <circle cx="120" cy="95" r="8" fill="#ffffff" stroke="#FF5A0F" strokeWidth="4" />
+                  <circle cx="211" cy="33" r="8" fill="#ffffff" stroke="#FF5A0F" strokeWidth="4" />
                 </svg>
               </div>
             </div>
@@ -111,7 +109,7 @@ export default function Home() {
                   <div className="gym-info">
                     <strong>{gym.name}</strong>
                     <em>{gym.rating} <Star size={10} fill="currentColor" /></em>
-                    <span><MapPin size={10} /> {gym.distance} <i /> <b>On your route</b></span>
+                    <span><MapPin size={10} /> {gym.distance} <i /> <b>Open now</b></span>
                   </div>
                 </article>
               ))}
@@ -120,28 +118,27 @@ export default function Home() {
         </div>
 
         <aside className="feature-list" id="features">
-          <div><MapPin /><span>Route-based<br />recommendations</span></div>
-          <div><Camera /><span>Real photos<br />& full details</span></div>
-          <div><Star /><span>Honest reviews<br />& ratings</span></div>
-          <div><Dumbbell /><span>Find the best gyms<br />on your journey</span></div>
+          <div><MapPin /><span>Search any area<br />or use your location</span></div>
+          <div><Camera /><span>Real details<br />from OpenStreetMap</span></div>
+          <div><Star /><span>Filter by the<br />facilities you need</span></div>
+          <div><Dumbbell /><span>Find a gym<br />wherever you are</span></div>
         </aside>
       </section>
 
-      <section className="stats" id="routes">
+      <section className="stats" id="stats">
         {gymCount !== null && (
           <div>
             <strong>{gymCount ?? <span className="stat-loading">—</span>}</strong>
             <span>Gyms mapped in India</span>
           </div>
         )}
-        <div><strong>3km</strong><span>Near-you radius</span></div>
-        <div><strong className="stat-mono">{MOCK_AVG_RATING}<span className="star-mark">★</span></strong><span className="stat-mono">Avg. rating</span></div>
+        <div><strong>10km</strong><span>Near-you radius</span></div>
       </section>
 
       <section className="bottom-prompt" id="about">
-        <p className="eyebrow">Your route. Your rhythm.</p>
+        <p className="eyebrow">Your area. Your rhythm.</p>
         <h2>Make every mile<br /><em>count.</em></h2>
-        <p className="about-copy">Trace finds gyms along the road you already drive, or within 3 km of where you are, so a workout fits into the trip instead of a detour.</p>
+        <p className="about-copy">Type an area like Bandra, or leave the search empty. FitPath shows the gyms within 10 km, so a workout fits into your day.</p>
         <button className="text-link" onClick={() => navigate(startPath)}>Start exploring <Play size={14} fill="currentColor" /></button>
       </section>
     </main>

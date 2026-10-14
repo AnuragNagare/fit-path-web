@@ -4,8 +4,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "functions": {
-    "api/stats.ts": { "maxDuration": 300 },
-    "api/gyms.ts": { "maxDuration": 120 }
+    "api/stats.ts": { "maxDuration": 300 }
   },
   "rewrites": [
     { "source": "/((?!api/|assets/).*)", "destination": "/index.html" }

@@ -24,15 +24,31 @@ function apiDevPlugin(): Plugin {
           res.end(JSON.stringify(body));
         };
 
+        // Vercel hands functions a parsed JSON body; do the same here (5 MB cap, like a photo upload).
+        async function readJson(): Promise<unknown> {
+          if (req.method === 'GET' || req.method === 'HEAD') return undefined;
+          const chunks: Buffer[] = [];
+          let size = 0;
+          for await (const chunk of req) {
+            size += (chunk as Buffer).length;
+            if (size > 5_000_000) throw new Error('Body too large');
+            chunks.push(chunk as Buffer);
+          }
+          const raw = Buffer.concat(chunks).toString('utf8');
+          return raw && String(req.headers['content-type']).includes('application/json') ? JSON.parse(raw) : undefined;
+        }
+
         try {
+          const body = await readJson();
           const mod = await server.ssrLoadModule(`/api/${match[1]}.ts`);
           let status = 200;
           const apiRes = {
             status(code: number) { status = code; return apiRes; },
             setHeader(name: string, value: string) { res.setHeader(name, value); return apiRes; },
-            json(body: unknown) { send(status, body); },
+            json(payload: unknown) { send(status, payload); },
+            send(payload: Buffer | string) { res.statusCode = status; res.end(payload); },
           };
-          await mod.default({ method: req.method, headers: req.headers, query }, apiRes);
+          await mod.default({ method: req.method, headers: req.headers, query, body }, apiRes);
         } catch (err) {
           const notFound = err instanceof Error && /Failed to load url|Cannot find/.test(err.message);
           send(notFound ? 404 : 500, { error: notFound ? 'Not found.' : 'Internal error.' });

@@ -2,14 +2,11 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
-  Check,
   ChevronDown,
-  ChevronRight,
   Dumbbell,
   Globe,
   Heart,
   MapPin,
-  MessageCircle,
   Navigation,
   Phone,
   Share2,
@@ -18,13 +15,15 @@ import {
 } from 'lucide-react';
 import { FEATURE_LABELS } from '@/data/features';
 import { useApi } from '@/lib/api';
-import { mockPrices, mockRating, mockReviews } from '@/lib/mock';
-import { useDeal, useSavedGym, useStoredFeatures, type DealPlan } from '@/lib/useStoredQuery';
+import { useCurrency } from '@/lib/currency-context';
+import { useSavedGym, useStoredFeatures } from '@/lib/useStoredQuery';
 import type { Gym } from '@/types';
+import BookingPanel from '@/components/BookingPanel';
+import CurrencyPicker from '@/components/CurrencyPicker';
+import Reviews from '@/components/Reviews';
 
 interface LocationState {
   gym?: Gym;
-  nearby?: boolean; // the search had no destination, so distance is from the user
 }
 
 export default function GymDetails() {
@@ -68,17 +67,12 @@ export default function GymDetails() {
     );
   }
 
-  return <GymProfile gym={gym} nearby={!!state?.nearby} />;
+  return <GymProfile gym={gym} />;
 }
 
-const PLANS: { id: DealPlan; label: string }[] = [
-  { id: 'month', label: 'Monthly plan' },
-  { id: 'day', label: 'Day pass' },
-  { id: 'trial', label: 'Free trial' },
-];
-
-// Built from real map data only; OpenStreetMap has no gym descriptions.
+// Built from real map data and the admin's edits; OpenStreetMap has no gym descriptions.
 function describe(gym: Gym, features: string[]): string {
+  if (gym.description) return gym.description;
   const parts = [`${gym.name} is a gym${gym.area ? ` in ${gym.area}` : ''}.`];
   if (gym.hours) parts.push(`Listed opening hours: ${gym.hours}.`);
   if (features.length > 0) parts.push(`Facilities listed on the map: ${features.join(', ')}.`);
@@ -86,19 +80,18 @@ function describe(gym: Gym, features: string[]): string {
   return parts.join(' ');
 }
 
-function GymProfile({ gym, nearby }: { gym: Gym; nearby: boolean }) {
+function GymProfile({ gym }: { gym: Gym }) {
   const navigate = useNavigate();
+  const { converted } = useCurrency();
   const [saved, toggleSaved] = useSavedGym(gym.id);
-  const [deal, setDeal] = useDeal(gym.id);
   const [selectedFeatures, setSelectedFeatures] = useStoredFeatures();
-  const [plan, setPlan] = useState<DealPlan>(deal?.plan ?? 'month');
   const [showAllAbout, setShowAllAbout] = useState(false);
   const [shareNote, setShareNote] = useState('');
+  const [photo, setPhoto] = useState(0);
 
   // Open at the top, not at the scroll position carried over from the map page.
   useEffect(() => { window.scrollTo(0, 0); }, [gym.id]);
 
-  const prices = mockPrices(gym.id);
   const featureLabels = gym.features.map(id => FEATURE_LABELS[id] ?? id);
   const starred = Array.from(selectedFeatures);
   const matched = starred.filter(id => gym.features.includes(id)).length;
@@ -106,7 +99,7 @@ function GymProfile({ gym, nearby }: { gym: Gym; nearby: boolean }) {
   const longAbout = about.length > 170;
   const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${gym.lat},${gym.lon}`;
   const website = gym.website && /^https?:\/\//.test(gym.website) ? gym.website : null;
-  const planLabel = PLANS.find(p => p.id === plan)?.label ?? '';
+  const current = gym.images[Math.min(photo, gym.images.length - 1)];
 
   function removeStarred(id: string) {
     setSelectedFeatures(prev => {
@@ -114,11 +107,6 @@ function GymProfile({ gym, nearby }: { gym: Gym; nearby: boolean }) {
       next.delete(id);
       return next;
     });
-  }
-
-  function choosePlan(next: DealPlan) {
-    setPlan(next);
-    if (deal) setDeal({ ...deal, plan: next }); // keep a locked deal in step with the chosen plan
   }
 
   async function share() {
@@ -138,8 +126,9 @@ function GymProfile({ gym, nearby }: { gym: Gym; nearby: boolean }) {
         <button className="gd-icon" onClick={() => navigate(-1)} aria-label="Back to results">
           <ArrowLeft size={22} />
         </button>
-        <a className="brand" href="/" aria-label="Trace home">Tra<span>ce</span></a>
+        <a className="brand" href="/" aria-label="FitPath home">Fit<span>Path</span></a>
         <div className="gd-header-actions">
+          <CurrencyPicker />
           {shareNote && <span className="gd-note" role="status">{shareNote}</span>}
           <button className="gd-icon" onClick={share} aria-label="Share gym">
             <Share2 size={20} />
@@ -151,10 +140,35 @@ function GymProfile({ gym, nearby }: { gym: Gym; nearby: boolean }) {
       </header>
 
       <div className="gd-shell">
-        <section className="gd-hero" aria-label="Photos">
-          <Dumbbell size={64} />
-          <span>No photos yet</span>
-        </section>
+        {current ? (
+          <section className="gd-gallery" aria-label="Photos">
+            <img className="gd-gallery-main" src={current.url} alt={current.alt ?? `${gym.name} photo`} />
+            {gym.images.length > 1 && (
+              <div className="gd-gallery-thumbs">
+                {gym.images.map((img, i) => (
+                  <button key={img.id} type="button" className={i === photo ? 'on' : ''} onClick={() => setPhoto(i)} aria-label={`Show photo ${i + 1}`}>
+                    <img src={img.url} alt="" loading="lazy" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        ) : (
+          <section className="gd-hero" aria-label="Photos">
+            <Dumbbell size={64} />
+            <span>No photos yet</span>
+          </section>
+        )}
+
+        {gym.videos.length > 0 && (
+          <section className="gd-videos" aria-label="Videos">
+            {gym.videos.map(v => (
+              <video key={v.id} controls preload="metadata" playsInline aria-label={v.alt ?? `${gym.name} video`}>
+                <source src={v.url} />
+              </video>
+            ))}
+          </section>
+        )}
 
         <section className="gd-intro">
           <div className="gd-title-row">
@@ -164,14 +178,20 @@ function GymProfile({ gym, nearby }: { gym: Gym; nearby: boolean }) {
             )}
           </div>
           <div className="gd-rating">
-            <Star size={20} fill="currentColor" />
-            <strong>{mockRating(gym.id)}</strong>
-            <span>({mockReviews(gym.id)} reviews)</span>
+            {gym.rating !== null ? (
+              <>
+                <Star size={20} fill="currentColor" />
+                <strong>{gym.rating}</strong>
+                <span>({gym.reviewCount} {gym.reviewCount === 1 ? 'review' : 'reviews'})</span>
+              </>
+            ) : (
+              <span>No reviews yet</span>
+            )}
             {gym.distanceKm > 0 && (
               <>
                 <i aria-hidden="true" />
                 <MapPin size={18} />
-                <strong title={nearby ? 'From your location' : 'From your route'}>{gym.distanceKm} KM</strong>
+                <strong title="From your search">{gym.distanceKm} KM</strong>
               </>
             )}
           </div>
@@ -186,39 +206,7 @@ function GymProfile({ gym, nearby }: { gym: Gym; nearby: boolean }) {
           )}
         </section>
 
-        <section className="gd-deal">
-          <div className="gd-price">
-            <strong>{prices.month}</strong><span>/mo</span>
-            <small>Membership Plan</small>
-          </div>
-          <div className="gd-price-divider" />
-          <div className="gd-price">
-            <strong>{prices.day}</strong><span>/day</span>
-            <small>Day Pass</small>
-          </div>
-          <div className="gd-deal-actions">
-            <button
-              type="button"
-              className={`gd-lock${deal?.status === 'locked' ? ' gd-lock--done' : ''}`}
-              onClick={() => setDeal({ plan, status: 'locked' })}
-            >
-              {deal?.status === 'locked' ? <><Check size={18} /> Deal locked</> : <>Lock this deal <ChevronRight size={20} /></>}
-            </button>
-            <button
-              type="button"
-              className={`gd-interest${deal?.status === 'interested' ? ' gd-interest--done' : ''}`}
-              onClick={() => setDeal({ plan, status: 'interested' })}
-            >
-              <MessageCircle size={17} /> {deal?.status === 'interested' ? 'Interest shown' : 'Show interest'}
-            </button>
-          </div>
-          {deal && (
-            <p className="gd-deal-note">
-              {deal.status === 'locked' ? `${planLabel} locked` : `Interest shown in the ${planLabel.toLowerCase()}`}. Saved on this device; the gym isn't contacted yet.
-              <button type="button" onClick={() => setDeal(null)}>Undo</button>
-            </p>
-          )}
-        </section>
+        <BookingPanel key={gym.id} gym={gym} />
 
         <section className="gd-card gd-musthaves">
           <div className="gd-row">
@@ -270,38 +258,21 @@ function GymProfile({ gym, nearby }: { gym: Gym; nearby: boolean }) {
         </section>
 
         <section className="gd-section">
-          <h2>Deal options</h2>
-          <div className="gd-options" role="radiogroup" aria-label="Deal options">
-            {PLANS.map(p => (
-              <button
-                key={p.id}
-                type="button"
-                role="radio"
-                aria-checked={plan === p.id}
-                className={`gd-option${plan === p.id ? ' gd-option--on' : ''}`}
-                onClick={() => choosePlan(p.id)}
-              >
-                <strong>
-                  {p.id === 'month' ? <>{prices.month}<small>/mo</small></> : p.id === 'day' ? <>{prices.day}<small>/day</small></> : 'Free Trial'}
-                </strong>
-                <span>{p.id === 'trial' ? '1 Day Pass' : p.label}</span>
-                {p.id === 'month' ? <b>Most Popular</b> : <em>{p.id === 'day' ? 'No commitment' : 'For new users'}</em>}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section className="gd-section">
           <h2>Gym info</h2>
           <dl className="gd-info">
             <div><dt>Opening hours</dt><dd>{gym.hours ?? 'Not listed'}</dd></div>
             {gym.phone && <div><dt>Phone</dt><dd><a href={`tel:${gym.phone}`}><Phone size={14} /> {gym.phone}</a></dd></div>}
             {website && <div><dt>Website</dt><dd><a href={website} target="_blank" rel="noreferrer"><Globe size={14} /> Visit website</a></dd></div>}
-            {gym.distanceKm > 0 && <div><dt>{nearby ? 'From your location' : 'From your route'}</dt><dd>{gym.distanceKm} km</dd></div>}
+            {gym.distanceKm > 0 && <div><dt>From your search</dt><dd>{gym.distanceKm} km</dd></div>}
           </dl>
         </section>
 
-        <p className="gd-mock-note">Ratings, reviews and prices are sample values until real gym data is connected.</p>
+        <Reviews key={`reviews-${gym.id}`} gymId={gym.id} />
+
+        <p className="gd-mock-note">
+          {gym.bookable.length === 0 && 'This gym has not set its prices yet, so the prices shown are samples. '}
+          {converted && 'Prices are converted from rupees at current exchange rates, for reference only.'}
+        </p>
       </div>
     </main>
   );

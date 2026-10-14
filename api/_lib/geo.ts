@@ -15,7 +15,7 @@ export type ApiGym = {
   lon: number;
   address: string | null;
   area: string | null; // suburb or city, for the list row
-  distanceKm: number; // distance from the route, or from the centre in nearby mode
+  distanceKm: number; // distance from the search point
   hours: string | null;
   openNow: boolean | null; // null when OSM has no (parseable) opening hours
   phone: string | null;
@@ -23,24 +23,15 @@ export type ApiGym = {
   features: string[]; // feature ids from src/data/features.ts that OSM tags confirm
 };
 
-export type RouteInfo = {
-  type: 'road' | 'straight'; // 'straight' = routing service was unavailable
-  coordinates: [number, number][]; // [lat, lon] pairs along the route
-  distanceKm: number;
-  durationMin: number | null;
-};
-
 const HEADERS = {
   Accept: 'application/json',
-  'User-Agent': 'Trace/1.0 (gym finder app)',
+  'User-Agent': 'FitPath/1.0 (gym finder app)',
 };
 
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 const OVERPASS_MIRROR_URL = 'https://overpass.private.coffee/api/interpreter';
 // Country-wide counts are too heavy for the main server, which rejects them as busy.
 const OVERPASS_HEAVY_URLS = [OVERPASS_MIRROR_URL, OVERPASS_URL];
-
-export const MAX_ROUTE_KM = 150;
 
 // `timeoutMs` caps each attempt: a hung connection otherwise never errors, so the retry and
 // mirror fallbacks would never start.
@@ -69,21 +60,6 @@ export function haversineKm(a: Coordinates, b: Coordinates): number {
   const lat2 = (b.lat * Math.PI) / 180;
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.asin(Math.sqrt(h));
-}
-
-function toLocalXY(p: Coordinates, ref: Coordinates) {
-  const kmPerDegLat = 110.574;
-  const kmPerDegLon = 111.32 * Math.cos((ref.lat * Math.PI) / 180);
-  return { x: (p.lon - ref.lon) * kmPerDegLon, y: (p.lat - ref.lat) * kmPerDegLat };
-}
-
-// Perpendicular distance in km from `point` to the segment a->b (city/route scale only).
-export function distanceToSegmentKm(point: Coordinates, a: Coordinates, b: Coordinates): number {
-  const p = toLocalXY(point, a);
-  const end = toLocalXY(b, a);
-  const lengthSq = end.x * end.x + end.y * end.y;
-  const t = lengthSq === 0 ? 0 : Math.max(0, Math.min(1, (p.x * end.x + p.y * end.y) / lengthSq));
-  return Math.hypot(p.x - end.x * t, p.y - end.y * t);
 }
 
 // India's bounding box (west,south,east,north): keeps lookups from resolving to a
@@ -204,89 +180,10 @@ async function overpass(query: string): Promise<OsmElement[]> {
 
 const GYM_FILTER = '["leisure"~"^(fitness_centre|sports_centre)$"]';
 
-const OSRM_URL = 'https://router.project-osrm.org/route/v1/driving';
-
-// Drives from a to b along real roads (OSRM public server). Falls back to the straight
-// line when routing is unavailable so a search still works.
-export async function getRoute(a: Coordinates, b: Coordinates): Promise<RouteInfo> {
-  try {
-    const url = `${OSRM_URL}/${a.lon},${a.lat};${b.lon},${b.lat}?overview=full&geometries=geojson`;
-    const res = await fetchWithRetry(url, { headers: HEADERS });
-    if (!res.ok) throw new Error('routing failed');
-    const data = (await res.json()) as {
-      code: string;
-      routes?: Array<{ distance: number; duration: number; geometry: { coordinates: [number, number][] } }>;
-    };
-    const route = data.routes?.[0];
-    if (data.code !== 'Ok' || !route) throw new Error('no route');
-    return {
-      type: 'road',
-      coordinates: route.geometry.coordinates.map(([lon, lat]) => [lat, lon] as [number, number]),
-      distanceKm: Math.round((route.distance / 1000) * 10) / 10,
-      durationMin: Math.round(route.duration / 60),
-    };
-  } catch {
-    return {
-      type: 'straight',
-      coordinates: [[a.lat, a.lon], [b.lat, b.lon]],
-      distanceKm: Math.round(haversineKm(a, b) * 10) / 10,
-      durationMin: null,
-    };
-  }
-}
-
-function distanceToPathKm(point: Coordinates, path: Coordinates[]): number {
-  if (path.length === 1) return haversineKm(point, path[0]);
-  let min = Infinity;
-  for (let i = 0; i < path.length - 1; i++) {
-    min = Math.min(min, distanceToSegmentKm(point, path[i], path[i + 1]));
-  }
-  return min;
-}
-
-// Douglas-Peucker: drops points within `toleranceKm` of the line so the Overpass query stays small.
-function simplifyPath(path: Coordinates[], toleranceKm: number): Coordinates[] {
-  if (path.length <= 2) return path;
-  let maxDist = 0;
-  let index = 0;
-  for (let i = 1; i < path.length - 1; i++) {
-    const d = distanceToSegmentKm(path[i], path[0], path[path.length - 1]);
-    if (d > maxDist) { maxDist = d; index = i; }
-  }
-  if (maxDist <= toleranceKm) return [path[0], path[path.length - 1]];
-  const left = simplifyPath(path.slice(0, index + 1), toleranceKm);
-  return [...left.slice(0, -1), ...simplifyPath(path.slice(index), toleranceKm)];
-}
-
-// Gyms within `radiusKm` of the route path, nearest to the route first.
-export async function findGymsAlongRoute(route: RouteInfo, radiusKm: number): Promise<ApiGym[]> {
-  const path = route.coordinates.map(([lat, lon]) => ({ lat, lon }));
-  let simplified = simplifyPath(path, 0.2);
-  // Keep the query short for very twisty routes.
-  for (let tol = 0.5; simplified.length > 80; tol *= 2) simplified = simplifyPath(path, tol);
-
-  const around = simplified.map(p => `${p.lat.toFixed(5)},${p.lon.toFixed(5)}`).join(',');
-  const elements = await overpass(
-    `[out:json][timeout:25];nwr${GYM_FILTER}(around:${radiusKm * 1000},${around});out center tags 500;`,
-  );
-
-  const gyms: ApiGym[] = [];
-  for (const el of elements) {
-    const lat = el.lat ?? el.center?.lat;
-    const lon = el.lon ?? el.center?.lon;
-    if (lat === undefined || lon === undefined) continue;
-    const distanceKm = distanceToPathKm({ lat, lon }, path);
-    if (distanceKm > radiusKm) continue;
-    const gym = toApiGym(el, Math.round(distanceKm * 10) / 10);
-    if (gym) gyms.push(gym);
-  }
-  return gyms.sort((x, y) => x.distanceKm - y.distanceKm);
-}
-
 // Gyms within `radiusKm` of a single point, nearest first.
 export async function findGymsNearby(center: Coordinates, radiusKm: number): Promise<ApiGym[]> {
   const elements = await overpass(
-    `[out:json][timeout:25];nwr${GYM_FILTER}(around:${radiusKm * 1000},${center.lat.toFixed(5)},${center.lon.toFixed(5)});out center tags 500;`,
+    `[out:json][timeout:25];nwr${GYM_FILTER}(around:${radiusKm * 1000},${center.lat.toFixed(5)},${center.lon.toFixed(5)});out center tags 1000;`,
   );
 
   const gyms: ApiGym[] = [];

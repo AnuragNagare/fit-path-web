@@ -1,27 +1,23 @@
 import { useCallback, useState } from 'react';
-import type { Place, RouteQuery } from '@/types';
+import type { Place, SearchQuery } from '@/types';
 
 // Saved in localStorage so they survive refreshes, closed tabs and browser restarts.
 // clearStoredData() wipes them on sign-out.
 const QUERY_KEY = 'trace:last-search';
 const FEATURES_KEY = 'trace:features';
 const SAVED_GYMS_KEY = 'trace:saved-gyms';
-const DEALS_KEY = 'trace:deals';
-
-// What the user did with a gym's deal on its profile page.
-export type DealChoice = { plan: DealPlan; status: 'locked' | 'interested' };
-export type DealPlan = 'month' | 'day' | 'trial';
 
 function isPlace(value: unknown): value is Place {
   const p = value as Place | null;
   return !!p && typeof p.label === 'string' && Number.isFinite(p.lat) && Number.isFinite(p.lon);
 }
 
-function readQuery(): RouteQuery | null {
+// A search saved by an older version (From/To) has no `place`, so it is dropped here.
+function readQuery(): SearchQuery | null {
   try {
-    const q = JSON.parse(localStorage.getItem(QUERY_KEY) ?? 'null') as RouteQuery | null;
-    if (!q || !isPlace(q.from) || (q.to !== null && !isPlace(q.to))) return null;
-    if (typeof q.startDate !== 'string' || typeof q.endDate !== 'string' || !Number.isFinite(q.people)) return null;
+    const q = JSON.parse(localStorage.getItem(QUERY_KEY) ?? 'null') as SearchQuery | null;
+    if (!q || !isPlace(q.place)) return null;
+    if (!Number.isFinite(q.people)) return null;
     return q;
   } catch {
     return null;
@@ -38,7 +34,7 @@ function readFeatures(): Set<string> {
 }
 
 export function clearStoredData() {
-  for (const key of [QUERY_KEY, FEATURES_KEY, SAVED_GYMS_KEY, DEALS_KEY]) localStorage.removeItem(key);
+  for (const key of [QUERY_KEY, FEATURES_KEY, SAVED_GYMS_KEY, 'trace:deals']) localStorage.removeItem(key); // 'trace:deals' is from an older version
 }
 
 function readJson<T>(key: string, fallback: T): T {
@@ -51,9 +47,9 @@ function readJson<T>(key: string, fallback: T): T {
 
 // The last search, so a refresh on /map re-runs it.
 export function useStoredQuery() {
-  const [query, setQueryState] = useState<RouteQuery | null>(readQuery);
+  const [query, setQueryState] = useState<SearchQuery | null>(readQuery);
 
-  const setQuery = useCallback((next: RouteQuery | null) => {
+  const setQuery = useCallback((next: SearchQuery | null) => {
     if (next) localStorage.setItem(QUERY_KEY, JSON.stringify(next));
     else localStorage.removeItem(QUERY_KEY);
     setQueryState(next);
@@ -89,18 +85,4 @@ export function useSavedGym(gymId: string) {
   }, [gymId, saved]);
 
   return [saved, toggle] as const;
-}
-
-// The deal locked, or the interest shown, for one gym.
-export function useDeal(gymId: string) {
-  const [deal, setDealState] = useState<DealChoice | null>(() => readJson<Record<string, DealChoice>>(DEALS_KEY, {})[gymId] ?? null);
-
-  const setDeal = useCallback((next: DealChoice | null) => {
-    const all = readJson<Record<string, DealChoice>>(DEALS_KEY, {});
-    if (next) all[gymId] = next; else delete all[gymId];
-    localStorage.setItem(DEALS_KEY, JSON.stringify(all));
-    setDealState(next);
-  }, [gymId]);
-
-  return [deal, setDeal] as const;
 }
