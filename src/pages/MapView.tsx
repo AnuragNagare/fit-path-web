@@ -82,7 +82,7 @@ export default function MapView({ query }: Props) {
     }
   });
 
-  const activeRowRef = useRef<HTMLElement | null>(null);
+  const activeRowRef = useRef<HTMLDivElement | null>(null);
   const lastFetchedKeyRef = useRef<string>(cachedGyms ? makeQueryKey(query) : '');
   const restoredScrollRef = useRef(false);
 

@@ -29,9 +29,10 @@ const HEADERS = {
 };
 
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
+const OVERPASS_KUMI_URL = 'https://overpass.kumi.systems/api/interpreter';
 const OVERPASS_MIRROR_URL = 'https://overpass.private.coffee/api/interpreter';
 // Country-wide counts are too heavy for the main server, which rejects them as busy.
-const OVERPASS_HEAVY_URLS = [OVERPASS_MIRROR_URL, OVERPASS_URL];
+const OVERPASS_HEAVY_URLS = [OVERPASS_KUMI_URL, OVERPASS_MIRROR_URL, OVERPASS_URL];
 
 // `timeoutMs` caps each attempt: a hung connection otherwise never errors, so the retry and
 // mirror fallbacks would never start.
@@ -133,6 +134,16 @@ function isOpenNow(hours: string | undefined): boolean | null {
   }
 }
 
+function extractGymName(tags: Record<string, string>): string {
+  if (tags.name && tags.name.trim()) return tags.name.trim();
+  if (tags['name:en'] && tags['name:en'].trim()) return tags['name:en'].trim();
+  if (tags.brand && tags.brand.trim()) return tags.brand.trim();
+  if (tags.operator && tags.operator.trim()) return tags.operator.trim();
+  if (tags.alt_name && tags.alt_name.trim()) return tags.alt_name.trim();
+  if (tags.official_name && tags.official_name.trim()) return tags.official_name.trim();
+  return 'Unnamed gym';
+}
+
 function toApiGym(el: OsmElement, distanceKm: number): ApiGym | null {
   const tags = el.tags ?? {};
   const lat = el.lat ?? el.center?.lat;
@@ -140,11 +151,11 @@ function toApiGym(el: OsmElement, distanceKm: number): ApiGym | null {
   if (lat === undefined || lon === undefined) return null;
   return {
     id: `${el.type}-${el.id}`,
-    name: tags.name ?? 'Unnamed gym',
+    name: extractGymName(tags),
     lat,
     lon,
     address: formatAddress(tags),
-    area: tags['addr:suburb'] ?? tags['addr:city'] ?? tags['addr:town'] ?? tags['addr:district'] ?? null,
+    area: tags['addr:suburb'] ?? tags['addr:city'] ?? tags['addr:town'] ?? tags['addr:district'] ?? tags['addr:neighborhood'] ?? null,
     distanceKm,
     hours: tags.opening_hours ?? null,
     openNow: isOpenNow(tags.opening_hours),
@@ -161,11 +172,17 @@ async function overpass(query: string): Promise<OsmElement[]> {
     body: `data=${encodeURIComponent(query)}`,
   };
   // The public servers rate-limit bursts and sometimes time out, so back off on the main
-  // server, then try a mirror before giving up.
-  for (const [url, retries] of [[OVERPASS_URL, 1], [OVERPASS_MIRROR_URL, 0]] as const) {
+  // server, then try fast mirrors before giving up.
+  const servers = [
+    [OVERPASS_URL, 1],
+    [OVERPASS_KUMI_URL, 1],
+    [OVERPASS_MIRROR_URL, 0],
+  ] as const;
+
+  for (const [url, retries] of servers) {
     try {
       // Overpass ends its own queries at 25 s ([timeout:25]), so allow a little longer than that.
-      const res = await fetchWithRetry(url, init, retries, 1500, 30_000);
+      const res = await fetchWithRetry(url, init, retries, 1200, 30_000);
       if (!res.ok) continue;
       const data = (await res.json()) as { elements?: OsmElement[]; remark?: string };
       // A query that ran out of time still answers 200, with a "runtime error" remark and no elements.
@@ -182,9 +199,13 @@ const GYM_FILTER = '["leisure"~"^(fitness_centre|sports_centre)$"]';
 
 // Gyms within `radiusKm` of a single point, nearest first.
 export async function findGymsNearby(center: Coordinates, radiusKm: number): Promise<ApiGym[]> {
-  const elements = await overpass(
-    `[out:json][timeout:25];nwr${GYM_FILTER}(around:${radiusKm * 1000},${center.lat.toFixed(5)},${center.lon.toFixed(5)});out center tags 1000;`,
-  );
+  const query = `[out:json][timeout:25];(
+  nwr["leisure"~"^(fitness_centre|sports_centre|fitness_station)$"](around:${radiusKm * 1000},${center.lat.toFixed(5)},${center.lon.toFixed(5)});
+  nwr["amenity"="gym"](around:${radiusKm * 1000},${center.lat.toFixed(5)},${center.lon.toFixed(5)});
+  nwr["sport"="fitness"](around:${radiusKm * 1000},${center.lat.toFixed(5)},${center.lon.toFixed(5)});
+);out center tags 1000;`;
+
+  const elements = await overpass(query);
 
   const gyms: ApiGym[] = [];
   for (const el of elements) {
@@ -196,7 +217,29 @@ export async function findGymsNearby(center: Coordinates, radiusKm: number): Pro
     const gym = toApiGym(el, Math.round(distanceKm * 10) / 10);
     if (gym) gyms.push(gym);
   }
-  return gyms.sort((x, y) => x.distanceKm - y.distanceKm);
+
+  // Deduplicate entries (e.g. node and way representing the same gym)
+  const uniqueGyms: ApiGym[] = [];
+  const seenIds = new Set<string>();
+
+  for (const g of gyms) {
+    if (seenIds.has(g.id)) continue;
+    seenIds.add(g.id);
+
+    // If another gym with the same non-unnamed name is within 80m, skip duplicate
+    if (g.name !== 'Unnamed gym') {
+      const isDupe = uniqueGyms.some(
+        existing =>
+          existing.name.toLowerCase() === g.name.toLowerCase() &&
+          haversineKm({ lat: existing.lat, lon: existing.lon }, { lat: g.lat, lon: g.lon }) < 0.08,
+      );
+      if (isDupe) continue;
+    }
+
+    uniqueGyms.push(g);
+  }
+
+  return uniqueGyms.sort((x, y) => x.distanceKm - y.distanceKm);
 }
 
 export async function getGymById(id: string): Promise<ApiGym | null> {
