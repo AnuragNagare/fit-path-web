@@ -84,7 +84,8 @@ export function useApi() {
   const vendor = useMemo(
     () => ({
       me: () => request<{ gym: VendorGym | null }>('GET', 'vendor', { resource: 'me' }).then(r => r.gym),
-      claim: (token: string) => request<{ gym: VendorGym }>('POST', 'vendor', { resource: 'claim' }, { token }).then(r => r.gym),
+      claim: (token: string, tier: 'free' | 'paid' = 'free') =>
+        request<{ gym: VendorGym }>('POST', 'vendor', { resource: 'claim' }, { token, tier }).then(r => r.gym),
       saveDraft: (profile: VendorProfile) => request<{ gym: VendorGym }>('PUT', 'vendor', { resource: 'draft' }, profile).then(r => r.gym),
       submit: () => request<{ gym: VendorGym }>('POST', 'vendor', { resource: 'submit' }, {}).then(r => r.gym),
       addMedia: (kind: 'photo' | 'video', url: string, alt: string) =>

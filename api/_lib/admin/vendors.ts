@@ -71,6 +71,8 @@ type QueueRow = {
   review_note: string | null;
   approved_at: string | Date | null;
   updated_at: string | Date;
+  tier?: 'free' | 'paid';
+  tier_requested_at?: string | Date | null;
 };
 
 // GET   admin?resource=registrations[&filter=pending|all]  ->  { gyms }
@@ -82,9 +84,9 @@ export async function adminRegistrations(req: ApiRequest, res: ApiResponse) {
     if (id === undefined) {
       const onlyPending = queryParam(req, 'filter') !== 'all';
       const list = await rows<QueueRow>(
-        `SELECT id, owner_name, owner_email, status, draft, live, draft_submitted_at, review_note, approved_at, updated_at
+        `SELECT id, owner_name, owner_email, status, draft, live, draft_submitted_at, review_note, approved_at, updated_at, tier, tier_requested_at
          FROM vendor_gyms ${onlyPending ? 'WHERE draft_submitted_at IS NOT NULL' : ''}
-         ORDER BY draft_submitted_at ASC NULLS LAST, updated_at DESC LIMIT 200`,
+         ORDER BY (tier = 'paid') DESC, draft_submitted_at ASC NULLS LAST, updated_at DESC LIMIT 200`,
       );
       return res.status(200).json({
         gyms: list.map(g => ({
@@ -94,6 +96,8 @@ export async function adminRegistrations(req: ApiRequest, res: ApiResponse) {
           ownerEmail: g.owner_email,
           state: deriveState(g),
           firstSubmission: g.approved_at === null,
+          tier: g.tier ?? 'free',
+          tierRequestedAt: iso(g.tier_requested_at ?? null),
           submittedAt: iso(g.draft_submitted_at),
           updatedAt: iso(g.updated_at),
         })),

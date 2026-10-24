@@ -113,6 +113,8 @@ export interface VendorGym {
   media: VendorMedia[];
   hasChanges: boolean;
   problems: string[]; // what is still missing before it can be submitted
+  tier: 'free' | 'paid';
+  tierRequestedAt: string | null;
   rating: number | null;
   reviewCount: number;
 }

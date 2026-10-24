@@ -11,6 +11,8 @@ type Row = {
   ownerName: string;
   ownerEmail: string;
   state: VendorState;
+  tier?: 'free' | 'paid';
+  tierRequestedAt?: string | null;
   firstSubmission: boolean;
   submittedAt: string | null;
   updatedAt: string;
@@ -44,9 +46,14 @@ export default function AdminRegistrations() {
 
       <ul className="admin-gym-list">
         {gyms?.map(g => (
-          <li key={g.id}>
+          <li key={g.id} className={g.tier === 'paid' ? 'admin-gym-item--paid' : ''}>
             <Link to={`/admin/registrations/${g.id}`}>
-              <strong>{g.name ?? 'Unnamed gym'}</strong>
+              <div className="admin-gym-header">
+                <strong>{g.name ?? 'Unnamed gym'}</strong>
+                {g.tier === 'paid' && (
+                  <span className="status-badge status-badge--paid">★ ₹15,000 Paid Setup</span>
+                )}
+              </div>
               <span className="muted">
                 {g.ownerName} · {g.ownerEmail}
                 {g.submittedAt ? ` · submitted ${formatDateTime(g.submittedAt)}` : ` · updated ${formatDateTime(g.updatedAt)}`}

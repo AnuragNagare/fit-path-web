@@ -96,6 +96,24 @@ export default function VendorProfile() {
   return (
     <>
       <h1 className="admin-title">Your gym</h1>
+      {gym.tier === 'paid' && (
+        <div className="vendor-tier-banner" role="status">
+          <div className="vendor-tier-banner__header">
+            <span className="vendor-tier-banner__badge">★ ₹15,000 Paid Setup Requested</span>
+            {gym.tierRequestedAt && (
+              <span className="vendor-tier-banner__date">
+                Requested on {new Date(gym.tierRequestedAt).toLocaleDateString()}
+              </span>
+            )}
+          </div>
+          <p className="vendor-tier-banner__text">
+            <strong>VIP On-Site Setup Active:</strong> Our FitPath team will come to your gym, shoot professional photos, write descriptions, add details, and set up your verified profile.
+          </p>
+          <p className="vendor-tier-banner__subtext">
+            You can still update any details below or upload images anytime, or leave it entirely to our team when they visit.
+          </p>
+        </div>
+      )}
       {gym.live && gym.hasChanges && (
         <p className="muted">Customers currently see: <strong>{gym.live.name}</strong>{gym.live.address ? `, ${gym.live.address}` : ''}. Your changes below are not public until approved.</p>
       )}

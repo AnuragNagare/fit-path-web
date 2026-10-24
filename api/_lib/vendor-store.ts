@@ -15,12 +15,14 @@ export type VendorGymRow = {
   draft_submitted_at: string | Date | null;
   review_note: string | null;
   approved_at: string | Date | null;
+  tier?: 'free' | 'paid';
+  tier_requested_at?: string | Date | null;
   created_at: string | Date;
   updated_at: string | Date;
 };
 
 export const VENDOR_COLUMNS =
-  'id, owner_clerk_id, owner_name, owner_email, status, live, live_lat, live_lon, draft, draft_submitted_at, review_note, approved_at, created_at, updated_at';
+  'id, owner_clerk_id, owner_name, owner_email, status, live, live_lat, live_lon, draft, draft_submitted_at, review_note, approved_at, tier, tier_requested_at, created_at, updated_at';
 
 export type MediaRow = {
   id: string;
@@ -74,6 +76,8 @@ export type VendorView = {
   media: MediaView[];
   hasChanges: boolean; // the draft or its media differ from what is live
   problems: string[]; // what is still missing before it can be submitted
+  tier: 'free' | 'paid';
+  tierRequestedAt: string | null;
   rating: number | null;
   reviewCount: number;
 };
@@ -98,6 +102,8 @@ export function buildView(gym: VendorGymRow, media: MediaRow[], stats: { rating:
     media: media.map(mediaView),
     hasChanges: changedFields(live, draft).length > 0 || media.some(m => m.status !== 'approved'),
     problems: submitProblems(draft, draftPhotoCount(media)),
+    tier: gym.tier ?? 'free',
+    tierRequestedAt: iso(gym.tier_requested_at ?? null),
     rating: stats.rating,
     reviewCount: stats.reviewCount,
   };

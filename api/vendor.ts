@@ -72,10 +72,12 @@ async function invite(req: ApiRequest, res: ApiResponse) {
   res.status(200).json({ status: inviteStatus(row), label: row.label });
 }
 
-// POST vendor?resource=claim {token}  ->  { gym }  attaches a new gym to the caller and uses up the link
+// POST vendor?resource=claim {token, tier}  ->  { gym }  attaches a new gym to the caller and uses up the link
 async function claim(req: ApiRequest, res: ApiResponse, userId: string) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed.' });
-  const token = bodyObject(req).token;
+  const body = bodyObject(req);
+  const token = body.token;
+  const tier = body.tier === 'paid' ? 'paid' : 'free';
   if (!isToken(token)) return res.status(400).json({ error: 'This link is not valid.' });
   if (await findGymByOwner(userId)) return res.status(409).json({ error: 'This account already has a gym profile.' });
 
@@ -88,9 +90,9 @@ async function claim(req: ApiRequest, res: ApiResponse, userId: string) {
          UPDATE vendor_invites SET used_at = now(), used_by_clerk_id = $2
          WHERE token_hash = $1 AND used_at IS NULL AND revoked_at IS NULL AND expires_at > now()
          RETURNING id)
-       INSERT INTO vendor_gyms (id, owner_clerk_id, owner_name, owner_email, invite_id)
-       SELECT $3, $2, $4, $5, id FROM claimed RETURNING id`,
-      [hash, userId, `vendor-${randomUUID()}`, profile.name, profile.email],
+       INSERT INTO vendor_gyms (id, owner_clerk_id, owner_name, owner_email, invite_id, tier, tier_requested_at)
+       SELECT $3, $2, $4, $5, id, $6, CASE WHEN $6 = 'paid' THEN now() ELSE NULL END FROM claimed RETURNING id`,
+      [hash, userId, `vendor-${randomUUID()}`, profile.name, profile.email, tier],
     );
     if (created.length === 0) {
       const [row] = await rows<{ used_at: string | null; revoked_at: string | null; expires_at: string }>(

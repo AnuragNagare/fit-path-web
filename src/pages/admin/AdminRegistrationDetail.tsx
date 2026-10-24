@@ -84,6 +84,23 @@ export default function AdminRegistrationDetail() {
         {gym.reviewCount > 0 && ` · rating ${gym.rating} from ${gym.reviewCount}`}
         {gym.submittedAt && ` · submitted ${formatDateTime(gym.submittedAt)}`}
       </p>
+
+      {gym.tier === 'paid' && (
+        <div className="admin-paid-callout" role="alert">
+          <div className="admin-paid-callout__icon">★</div>
+          <div className="admin-paid-callout__body">
+            <strong>Managed On-Site Setup Requested (₹15,000 Package)</strong>
+            <p>
+              This gym owner requested our on-site team visit. We will take professional photos, write their description and set up facilities.
+              {gym.tierRequestedAt && ` Requested on ${formatDateTime(gym.tierRequestedAt)}.`}
+            </p>
+            <p className="admin-paid-callout__contact">
+              Follow up with owner to schedule visit: <strong>{owner.name}</strong> ({owner.email}) {gym.draft.phone ? `· Phone: ${gym.draft.phone}` : ''}
+            </p>
+          </div>
+        </div>
+      )}
+
       {gym.reviewNote && <p className="muted">Your last note to the owner: "{gym.reviewNote}"</p>}
       {error && <p className="field-error" role="alert">{error}</p>}
       {done && <p className="admin-note" role="status">{done}</p>}

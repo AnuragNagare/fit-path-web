@@ -489,6 +489,7 @@ div.listing-empty p { margin: 0 0 14px; }
 .status-badge--active { color: var(--ok); }
 .status-badge--ended { color: var(--muted); }
 .status-badge--cancelled { color: #D92D20; }
+.status-badge--paid { color: #B45309; background: #FEF3C7; border-color: #F59E0B; }
 
 /* ════════════════════════════════════
    ADMIN
@@ -574,7 +575,358 @@ div.listing-empty p { margin: 0 0 14px; }
 .gd-videos { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin-top: 10px; }
 .gd-videos video { width: 100%; max-height: 260px; border-radius: 12px; background: #12161F; }
 
-.register-page { display: flex; flex-direction: column; align-items: center; gap: 28px; padding: 32px 20px 64px; background: var(--surface); }
+.register-page { display: flex; flex-direction: column; align-items: center; gap: 24px; padding: 40px 20px 80px; background: var(--surface); min-height: 100vh; }
+.register-container { width: 100%; max-width: 960px; display: flex; flex-direction: column; gap: 32px; }
+.register-header { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; max-width: 680px; margin: 0 auto; }
+.register-header h1 { margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 32px; font-weight: 700; letter-spacing: -.6px; }
+.register-header .register-desc { margin: 0; color: var(--muted); font-size: 16px; line-height: 1.5; }
+.register-header .register-label { margin: 0; font-size: 14px; color: var(--accent-text); background: var(--wash); padding: 4px 14px; border-radius: 100px; border: 1px solid rgba(255,90,15,0.25); }
+
+/* Tiers Grid: 2 columns */
+.register-tiers-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: stretch; }
+
+.register-tier-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-radius: 20px;
+  background: var(--bg);
+  border: 1.5px solid var(--line);
+  padding: 32px 28px;
+  box-shadow: 0 4px 20px rgba(18, 22, 31, 0.04);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.register-tier-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(18, 22, 31, 0.08);
+}
+
+/* Featured / Paid tier card with golden / VIP glowing accents */
+.register-tier-card--featured {
+  border: 2px solid #FF5A0F;
+  background: linear-gradient(180deg, #FFFFFF 0%, #FFFBF8 100%);
+  box-shadow: 0 10px 36px rgba(255, 90, 15, 0.12);
+}
+.register-tier-card__banner {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #FF5A0F 0%, #E04800 100%);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding: 5px 16px;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 4px 12px rgba(255, 90, 15, 0.35);
+  white-space: nowrap;
+}
+
+.register-tier-card__header { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+.register-tier-badge {
+  align-self: flex-start;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 3px 10px;
+  border-radius: 100px;
+  background: var(--surface);
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+.register-tier-badge--pro {
+  background: #FFF3EA;
+  color: var(--accent-text);
+  border-color: rgba(255, 90, 15, 0.3);
+}
+
+.register-tier-title {
+  margin: 0;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+}
+
+.register-tier-price {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 6px 0 2px;
+}
+.register-tier-amount {
+  font-size: 36px;
+  font-weight: 800;
+  font-family: 'Space Grotesk', sans-serif;
+  color: var(--text);
+  letter-spacing: -1px;
+}
+.register-tier-period {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 500;
+}
+.register-tier-summary {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.register-tier-perks {
+  list-style: none;
+  margin: 0 0 28px;
+  padding: 20px 0 0;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+}
+.register-tier-perks li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text);
+}
+.tier-check { color: #16A34A; flex-shrink: 0; margin-top: 2px; }
+.tier-star { color: #D97706; flex-shrink: 0; margin-top: 2px; }
+
+.register-tier-action { margin-top: auto; }
+.register-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 13px 20px;
+  font-size: 15px;
+  font-weight: 700;
+  border-radius: 12px;
+  text-decoration: none;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+}
+.register-btn--primary {
+  background: linear-gradient(135deg, #FF5A0F 0%, #EA4C00 100%);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(255, 90, 15, 0.35);
+}
+.register-btn--primary:hover {
+  box-shadow: 0 6px 20px rgba(255, 90, 15, 0.45);
+  transform: translateY(-1px);
+}
+.register-btn--secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1.5px solid var(--line);
+}
+.register-btn--secondary:hover {
+  background: var(--panel);
+  border-color: var(--muted);
+}
+
+/* Paid Request Confirmation Screen */
+.register-paid-success {
+  width: 100%;
+  max-width: 600px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+  padding: 40px 32px;
+  border-radius: 20px;
+  background: var(--bg);
+  border: 1.5px solid rgba(255, 90, 15, 0.25);
+  box-shadow: 0 12px 40px rgba(18, 22, 31, 0.08);
+}
+.register-paid-success__icon {
+  width: 68px;
+  height: 68px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #FF5A0F 0%, #D97706 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 18px rgba(255, 90, 15, 0.3);
+}
+.register-paid-success h1 {
+  margin: 0;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+.register-paid-success__sub {
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.register-paid-summary {
+  width: 100%;
+  background: var(--surface);
+  border-radius: 14px;
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+  margin: 8px 0;
+}
+.register-paid-summary__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 14px;
+}
+.register-paid-summary__row span:first-child {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.register-paid-summary__row strong {
+  color: var(--text);
+  font-size: 14px;
+  text-align: right;
+}
+.register-paid-summary__row span:last-child {
+  color: var(--text);
+  text-align: right;
+  font-size: 13px;
+}
+
+@media (max-width: 768px) {
+  .register-tiers-grid { grid-template-columns: 1fr; }
+  .register-tier-card__banner { position: static; transform: none; align-self: flex-start; margin-bottom: 12px; }
+}
+
+/* Admin Registrations Callout & Paid Items */
+.admin-gym-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.admin-gym-item--paid {
+  border-left: 4px solid #D97706 !important;
+  background: #FFFDF9;
+}
+.admin-paid-callout {
+  margin-bottom: 24px;
+  padding: 20px 24px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%);
+  border: 1.5px solid #F59E0B;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.admin-paid-callout__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.admin-paid-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #D97706;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 100px;
+  letter-spacing: 0.3px;
+}
+.admin-paid-badge--lg {
+  font-size: 14px;
+  padding: 5px 14px;
+}
+.admin-paid-callout p {
+  margin: 0;
+  font-size: 14px;
+  color: #78350F;
+  line-height: 1.5;
+}
+.admin-paid-list {
+  margin: 4px 0 0;
+  padding-left: 20px;
+  color: #78350F;
+  font-size: 14px;
+  display: grid;
+  gap: 4px;
+}
+.admin-paid-actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Vendor Dashboard Banner for Paid Setup */
+.vendor-tier-banner {
+  margin-bottom: 20px;
+  padding: 18px 22px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #FFFDF8 0%, #FEF9EE 100%);
+  border: 1.5px solid #F59E0B;
+  border-left-width: 6px;
+  border-left-color: #D97706;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 4px 16px rgba(217, 119, 6, 0.08);
+}
+.vendor-tier-banner__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.vendor-tier-banner__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #B45309;
+  background: #FEF3C7;
+  padding: 4px 12px;
+  border-radius: 100px;
+  border: 1px solid #FCD34D;
+}
+.vendor-tier-banner__date {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 500;
+}
+.vendor-tier-banner__text {
+  margin: 0;
+  font-size: 14.5px;
+  color: var(--text);
+  line-height: 1.45;
+}
+.vendor-tier-banner__subtext {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
 .register-card { width: 100%; max-width: 520px; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 28px; border-radius: 16px; background: var(--bg); border: 1px solid var(--line); box-shadow: 0 8px 30px rgba(18,22,31,.06); }
 .register-card h1 { margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 26px; letter-spacing: -.5px; text-transform: none; line-height: 1.15; }
 .register-card p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.5; }
