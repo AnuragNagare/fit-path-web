@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
-import { MapContainer, TileLayer, Marker, Circle, CircleMarker, Tooltip, useMap, useMapEvents } from 'react-leaflet';
-import L from 'leaflet';
 import { UserButton } from '@clerk/react';
-import { ArrowDownUp, Dumbbell, Filter, Pencil, Star, Users, X } from 'lucide-react';
+import { X, ArrowUpDown, Dumbbell } from 'lucide-react';
 import type { SearchQuery, Gym } from '@/types';
 import { FEATURE_LABELS } from '@/data/features';
 import { useApi } from '@/lib/api';
@@ -11,50 +9,18 @@ import { useCurrency } from '@/lib/currency-context';
 import { useIsAdmin } from '@/lib/useIsAdmin';
 import { useIsVendor } from '@/lib/useIsVendor';
 import { useStoredFeatures } from '@/lib/useStoredQuery';
-import FilterPanel from '@/components/FilterPanel';
 import CurrencyPicker from '@/components/CurrencyPicker';
-
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
-L.Icon.Default.mergeOptions({ iconUrl: markerIcon, iconRetinaUrl: markerIcon2x, shadowUrl: markerShadow });
+import SearchRibbon from '@/components/booking/SearchRibbon';
+import SidebarFilters from '@/components/booking/SidebarFilters';
+import GymCard from '@/components/booking/GymCard';
+import MapModal from '@/components/booking/MapModal';
 
 // Matches DEFAULT_RADIUS_KM in api/gyms.ts.
 const SEARCH_RADIUS_KM = 10;
 
-type SortMode = 'closest' | 'az';
+type SortMode = 'closest' | 'price_low' | 'price_high' | 'rating' | 'az';
 
-function makeIcon(active: boolean) {
-  return L.divIcon({
-    className: '',
-    html: `<div class="map-marker${active ? ' map-marker--active' : ''}"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div>`,
-    iconSize: [36, 36],
-    iconAnchor: [18, 36],
-  });
-}
-
-// Fits the search circle.
-function FitSearch({ query }: { query: SearchQuery }) {
-  const map = useMap();
-  useEffect(() => {
-    map.fitBounds(L.latLng(query.place.lat, query.place.lon).toBounds(SEARCH_RADIUS_KM * 2000), { padding: [8, 8] });
-  }, [query, map]);
-  return null;
-}
-
-function PanToGym({ gym }: { gym: Gym | null }) {
-  const map = useMap();
-  useEffect(() => {
-    if (gym) map.panTo([gym.lat, gym.lon], { animate: true });
-  }, [gym, map]);
-  return null;
-}
-
-function MapClickAway({ onClick }: { onClick: () => void }) {
-  useMapEvents({ click: onClick });
-  return null;
-}
+const MAX_PRICE_DEFAULT = 12000;
 
 interface Props {
   query: SearchQuery | null;
@@ -66,50 +32,132 @@ export default function MapView({ query }: Props) {
   const { format } = useCurrency();
   const isAdmin = useIsAdmin();
   const isVendor = useIsVendor();
+
   const [gyms, setGyms] = useState<Gym[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState('');
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [filterOpen, setFilterOpen] = useState(false);
+
+  // Filter & Sort States
   const [selectedFeatures, setSelectedFeatures] = useStoredFeatures();
   const [sort, setSort] = useState<SortMode>('closest');
-  const [attempt, setAttempt] = useState(0); // bumped by "Try again"
+  const [attempt, setAttempt] = useState(0);
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, MAX_PRICE_DEFAULT]);
+  const [minRating, setMinRating] = useState<number | null>(null);
+  const [openNowOnly, setOpenNowOnly] = useState(false);
+
+  // Map Modal
+  const [mapModalOpen, setMapModalOpen] = useState(false);
+
+  // Favorites (persisted locally)
+  const [favorites, setFavorites] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('fitpath_favs');
+      return new Set(saved ? JSON.parse(saved) : []);
+    } catch {
+      return new Set();
+    }
+  });
 
   const activeRowRef = useRef<HTMLElement | null>(null);
 
+  // Fetch gyms for query
   useEffect(() => {
     if (!query) return;
     let cancelled = false;
     setStatus('loading');
     setActiveId(null);
+
     searchGyms(query)
-      .then(result => { if (!cancelled) { setGyms(result.gyms); setStatus('ready'); } })
+      .then(result => {
+        if (!cancelled) {
+          setGyms(result.gyms);
+          setStatus('ready');
+        }
+      })
       .catch(err => {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : 'Could not load gyms.');
         setStatus('error');
       });
-    return () => { cancelled = true; };
+
+    return () => {
+      cancelled = true;
+    };
   }, [query, searchGyms, attempt]);
 
-  // A gym must have every selected feature.
-  const visibleGyms = useMemo(
-    () => gyms.filter(g => Array.from(selectedFeatures).every(id => g.features.includes(id))),
-    [gyms, selectedFeatures],
-  );
+  // Favorite toggle
+  function toggleFavorite(id: string) {
+    setFavorites(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      try {
+        localStorage.setItem('fitpath_favs', JSON.stringify(Array.from(next)));
+      } catch {
+        // ignore storage errors
+      }
+      return next;
+    });
+  }
 
-  // The gym picked on the map, if it is still visible after filtering.
-  const activeGym = visibleGyms.find(g => g.id === activeId) ?? null;
+  // Filter pipeline
+  const visibleGyms = useMemo(() => {
+    return gyms.filter(gym => {
+      // 1. Feature checklist (gym must have all selected features)
+      const hasFeatures = Array.from(selectedFeatures).every(id => gym.features.includes(id));
+      if (!hasFeatures) return false;
 
-  // Sorted list, with the picked gym moved to the top.
+      // 2. Open Now filter
+      if (openNowOnly && gym.openNow !== true) return false;
+
+      // 3. Price filter
+      const monthPrice = gym.prices.month;
+      if (monthPrice > priceRange[1]) return false;
+
+      // 4. Rating filter
+      if (minRating !== null) {
+        const rating = gym.rating ?? 0;
+        if (rating < minRating) return false;
+      }
+
+      return true;
+    });
+  }, [gyms, selectedFeatures, openNowOnly, priceRange, minRating]);
+
+  // Currently active gym on map / card
+  const activeGym = useMemo(() => {
+    return visibleGyms.find(g => g.id === activeId) ?? null;
+  }, [visibleGyms, activeId]);
+
+  // Sorting pipeline
   const listedGyms = useMemo(() => {
-    const sorted = sort === 'az'
-      ? [...visibleGyms].sort((a, b) => a.name.localeCompare(b.name))
-      : visibleGyms; // the API already returns nearest first
-    return activeGym ? [activeGym, ...sorted.filter(g => g.id !== activeGym.id)] : sorted;
+    const list = [...visibleGyms];
+
+    switch (sort) {
+      case 'price_low':
+        list.sort((a, b) => a.prices.month - b.prices.month);
+        break;
+      case 'price_high':
+        list.sort((a, b) => b.prices.month - a.prices.month);
+        break;
+      case 'rating':
+        list.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
+        break;
+      case 'az':
+        list.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case 'closest':
+      default:
+        list.sort((a, b) => a.distanceKm - b.distanceKm);
+        break;
+    }
+
+    // Keep active gym at top if selected
+    return activeGym ? [activeGym, ...list.filter(g => g.id !== activeGym.id)] : list;
   }, [activeGym, visibleGyms, sort]);
 
-  // Bring the picked gym's row into view if it is below the fold.
+  // Bring active gym into view if below fold
   useEffect(() => {
     if (activeId) activeRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [activeId]);
@@ -122,18 +170,40 @@ export default function MapView({ query }: Props) {
     navigate(`/gym/${gym.id}`, { state: { gym } });
   }
 
+  function handleShowOnMap(gym: Gym) {
+    setActiveId(gym.id);
+    setMapModalOpen(true);
+  }
+
   function toggleFeature(id: string) {
     setSelectedFeatures(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
 
+  function clearAllFilters() {
+    setSelectedFeatures(new Set());
+    setPriceRange([0, MAX_PRICE_DEFAULT]);
+    setMinRating(null);
+    setOpenNowOnly(false);
+  }
+
+  const activeFiltersCount =
+    selectedFeatures.size +
+    (openNowOnly ? 1 : 0) +
+    (minRating !== null ? 1 : 0) +
+    (priceRange[1] < MAX_PRICE_DEFAULT ? 1 : 0);
+
   return (
-    <div className="site map-site">
+    <div className="site bk-page-container">
+      {/* 1. Global Navigation Header */}
       <header className="map-header">
-        <a className="brand" href="/" aria-label="FitPath home">Fit<span>Path</span></a>
+        <a className="brand" href="/" aria-label="FitPath home">
+          Fit<span>Path</span>
+        </a>
         <div className="header-right">
           {isAdmin && <Link className="header-link" to="/admin">Admin</Link>}
           {isVendor && <Link className="header-link" to="/vendor">My gym</Link>}
@@ -143,156 +213,189 @@ export default function MapView({ query }: Props) {
         </div>
       </header>
 
-      {/* Map (unchanged) */}
-      <div className="leaflet-wrap">
-        <MapContainer
-          center={[query.place.lat, query.place.lon]}
-          zoom={13}
-          scrollWheelZoom
-          style={{ width: '100%', height: '100%' }}
-        >
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-          <FitSearch query={query} />
-          <PanToGym gym={activeGym} />
-          <MapClickAway onClick={() => setActiveId(null)} />
+      {/* 2. Top Search Ribbon (Booking.com yellow/accent search bar) */}
+      <SearchRibbon
+        query={query}
+        onEditSearch={() => navigate('/plan')}
+        radiusKm={SEARCH_RADIUS_KM}
+      />
 
-          <Circle
-            center={[query.place.lat, query.place.lon]}
-            radius={SEARCH_RADIUS_KM * 1000}
-            pathOptions={{ color: '#FF5A0F', weight: 2, dashArray: '8 8', fillColor: '#FF5A0F', fillOpacity: 0.05 }}
-          />
-          <CircleMarker center={[query.place.lat, query.place.lon]} radius={8} pathOptions={{ color: '#ffffff', weight: 3, fillColor: '#FF5A0F', fillOpacity: 1 }}>
-            <Tooltip>{query.place.label}</Tooltip>
-          </CircleMarker>
+      {/* 3. Main 2-Column Booking Layout */}
+      <main className="bk-layout">
+        {/* Left Sidebar */}
+        <SidebarFilters
+          gyms={gyms}
+          selectedFeatures={selectedFeatures}
+          onToggleFeature={toggleFeature}
+          onClearAll={clearAllFilters}
+          onOpenMap={() => setMapModalOpen(true)}
+          priceRange={priceRange}
+          onPriceChange={setPriceRange}
+          maxPriceLimit={MAX_PRICE_DEFAULT}
+          minRating={minRating}
+          onSelectRating={setMinRating}
+          openNowOnly={openNowOnly}
+          onToggleOpenNow={() => setOpenNowOnly(v => !v)}
+        />
 
-          {visibleGyms.map(gym => (
-            <Marker
-              key={gym.id}
-              position={[gym.lat, gym.lon]}
-              icon={makeIcon(gym.id === activeId)}
-              zIndexOffset={gym.id === activeId ? 1000 : 0}
-              eventHandlers={{ click: () => setActiveId(gym.id) }}
-            />
-          ))}
-        </MapContainer>
-      </div>
+        {/* Right Main Results Feed */}
+        <section className="bk-main-feed">
+          {/* Feed Header */}
+          <div className="bk-feed-head">
+            <div className="bk-feed-head__top">
+              <h1 className="bk-feed-head__title">
+                {placeLabel}:
+                <span className="bk-feed-head__count">
+                  {status === 'loading'
+                    ? 'Searching gyms…'
+                    : status === 'error'
+                    ? 'Search error'
+                    : `${visibleGyms.length} gyms found`}
+                </span>
+              </h1>
 
-      <section className="results">
-        <div className="results-head">
-          <div className="results-title">
-            <div className="results-title-row">
-              <h2>Gyms near {placeLabel}</h2>
-              <button type="button" className="edit-pill" onClick={() => navigate('/plan')}>
-                Edit <Pencil size={14} />
-              </button>
+              {/* Sort by dropdown */}
+              <div className="bk-feed-sort">
+                <span className="bk-feed-sort__label">Sort by:</span>
+                <select
+                  value={sort}
+                  onChange={e => setSort(e.target.value as SortMode)}
+                  className="bk-feed-sort__select"
+                  aria-label="Sort search results"
+                >
+                  <option value="closest">Distance (Closest first)</option>
+                  <option value="price_low">Price (Lowest first)</option>
+                  <option value="price_high">Price (Highest first)</option>
+                  <option value="rating">Review score (Highest first)</option>
+                  <option value="az">Name (A to Z)</option>
+                </select>
+              </div>
             </div>
-            <p className="results-sub">Within {SEARCH_RADIUS_KM} km</p>
-            <p className="results-trip">
-              <Users size={14} /> {query.people} {query.people === 1 ? 'person' : 'people'}
-            </p>
-          </div>
-          <span className="results-count">
-            {status === 'loading' ? 'Searching…' : status === 'error' ? 'Search failed' : `${visibleGyms.length} found`}
-          </span>
-        </div>
 
-        <div className="results-tools">
-          <div className="feature-chips">
-            {Array.from(selectedFeatures).map(id => (
-              <button key={id} type="button" className="feature-chip" onClick={() => toggleFeature(id)} aria-label={`Remove ${FEATURE_LABELS[id] ?? id} filter`}>
-                {FEATURE_LABELS[id] ?? id} <X size={13} />
-              </button>
-            ))}
-            {selectedFeatures.size === 0 && (
-              <button type="button" className="feature-chip feature-chip--add" onClick={() => setFilterOpen(true)}>
-                Filter by features
-              </button>
+            {/* Active Filter Chips */}
+            {activeFiltersCount > 0 && (
+              <div className="bk-active-chips">
+                {Array.from(selectedFeatures).map(id => (
+                  <button
+                    key={id}
+                    type="button"
+                    className="bk-active-chip"
+                    onClick={() => toggleFeature(id)}
+                    aria-label={`Remove ${FEATURE_LABELS[id] ?? id} filter`}
+                  >
+                    <span>{FEATURE_LABELS[id] ?? id}</span>
+                    <X size={12} />
+                  </button>
+                ))}
+                {openNowOnly && (
+                  <button
+                    type="button"
+                    className="bk-active-chip"
+                    onClick={() => setOpenNowOnly(false)}
+                  >
+                    <span>Open Now</span>
+                    <X size={12} />
+                  </button>
+                )}
+                {minRating !== null && (
+                  <button
+                    type="button"
+                    className="bk-active-chip"
+                    onClick={() => setMinRating(null)}
+                  >
+                    <span>Rating: {minRating * 2}+</span>
+                    <X size={12} />
+                  </button>
+                )}
+                {priceRange[1] < MAX_PRICE_DEFAULT && (
+                  <button
+                    type="button"
+                    className="bk-active-chip"
+                    onClick={() => setPriceRange([0, MAX_PRICE_DEFAULT])}
+                  >
+                    <span>Max {format(priceRange[1])}</span>
+                    <X size={12} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="bk-filter-clear-btn"
+                  onClick={clearAllFilters}
+                >
+                  Clear all
+                </button>
+              </div>
             )}
           </div>
-          <div className="results-actions">
-            <button type="button" className="icon-action" onClick={() => setFilterOpen(true)} aria-label="Filter by features">
-              <Filter size={22} fill="currentColor" />
-            </button>
-            <button
-              type="button"
-              className="icon-action sort-action"
-              onClick={() => setSort(s => (s === 'closest' ? 'az' : 'closest'))}
-              aria-label={`Sort: ${sort === 'closest' ? 'closest first' : 'A to Z'}. Change sort`}
-            >
-              <ArrowDownUp size={20} />
-              <span>{sort === 'closest' ? 'Closest' : 'A–Z'}</span>
-            </button>
+
+          {/* Cards Stack */}
+          <div className="bk-cards-stack">
+            {status === 'loading' && (
+              <div className="listing-empty">
+                <p>Finding gyms near {placeLabel}…</p>
+              </div>
+            )}
+
+            {status === 'error' && (
+              <div className="listing-empty">
+                <p>{error}</p>
+                <button
+                  type="button"
+                  className="edit-pill"
+                  onClick={() => setAttempt(n => n + 1)}
+                >
+                  Try again
+                </button>
+              </div>
+            )}
+
+            {status === 'ready' && visibleGyms.length === 0 && (
+              <div className="listing-empty">
+                <Dumbbell size={36} style={{ color: 'var(--accent)', margin: '0 auto 12px' }} />
+                <p>
+                  {gyms.length > 0
+                    ? 'No gyms match all your selected filters. Try removing some filters or adjusting your budget.'
+                    : `No gyms found within ${SEARCH_RADIUS_KM} km of ${placeLabel}. Try a broader area or a nearby city.`}
+                </p>
+                {activeFiltersCount > 0 && (
+                  <button
+                    type="button"
+                    className="edit-pill"
+                    onClick={clearAllFilters}
+                    style={{ marginTop: 12 }}
+                  >
+                    Reset all filters
+                  </button>
+                )}
+              </div>
+            )}
+
+            {status === 'ready' &&
+              listedGyms.map(gym => (
+                <div key={gym.id} ref={gym.id === activeId ? activeRowRef : undefined}>
+                  <GymCard
+                    gym={gym}
+                    active={gym.id === activeId}
+                    isFavorite={favorites.has(gym.id)}
+                    onToggleFavorite={toggleFavorite}
+                    onOpenGym={openGym}
+                    onShowOnMap={handleShowOnMap}
+                  />
+                </div>
+              ))}
           </div>
-        </div>
+        </section>
+      </main>
 
-        <div className="result-rows">
-          {status === 'loading' && <p className="listing-empty">Finding gyms near {placeLabel}…</p>}
-          {status === 'error' && (
-            <div className="listing-empty">
-              <p>{error}</p>
-              <button type="button" className="edit-pill" onClick={() => setAttempt(n => n + 1)}>Try again</button>
-            </div>
-          )}
-          {status === 'ready' && visibleGyms.length === 0 && (
-            <p className="listing-empty">
-              {gyms.length > 0
-                ? 'No gyms match all selected features. Remove a filter to see more.'
-                : `No gyms found within ${SEARCH_RADIUS_KM} km of ${placeLabel}. Try a nearby area or a bigger city.`}
-            </p>
-          )}
-          {status === 'ready' && listedGyms.map(gym => {
-            const active = gym.id === activeId;
-            const meta = [gym.features.includes('parking') ? 'Parking' : null, gym.openNow === null ? null : gym.openNow ? 'Open' : 'Closed'].filter(Boolean);
-            return (
-              <article
-                key={gym.id}
-                ref={active ? activeRowRef : undefined}
-                className={`gym-row${active ? ' gym-row--active' : ''}`}
-                onClick={() => openGym(gym)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={e => e.key === 'Enter' && openGym(gym)}
-                aria-label={`${gym.name}, open profile`}
-              >
-                <div className="gym-row-photo" aria-hidden="true">
-                  {gym.images[0] ? <img src={gym.images[0].url} alt="" loading="lazy" /> : <Dumbbell size={30} />}
-                </div>
-                <div className="gym-row-main">
-                  <strong>{gym.name}</strong>
-                  <span className="gym-row-area">{gym.area ?? 'Area not listed'}</span>
-                  {active && (
-                    <button type="button" className="details-pill" onClick={e => { e.stopPropagation(); openGym(gym); }}>
-                      Details
-                    </button>
-                  )}
-                </div>
-                <div className="gym-row-side">
-                  <b className="gym-row-dist">{gym.distanceKm} km</b>
-                  <span className="gym-row-meta">
-                    {gym.rating !== null ? <>{gym.rating} <Star size={13} fill="currentColor" /></> : 'No reviews yet'}
-                    {meta.length > 0 && <span>{meta.join(' • ')}</span>}
-                  </span>
-                  <span className="gym-row-price">
-                    {format(gym.prices.month)}/mo <i>|</i> {format(gym.prices.day)}/day
-                    {!(gym.bookable.includes('month') && gym.bookable.includes('day')) && <small className="gym-row-sample" title="This gym has not set its prices yet">sample</small>}
-                  </span>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* Filter panel */}
-      <FilterPanel
-        open={filterOpen}
-        selected={selectedFeatures}
-        onToggle={toggleFeature}
-        onClear={() => setSelectedFeatures(new Set())}
-        onClose={() => setFilterOpen(false)}
+      {/* 4. Fullscreen Interactive Map Modal (Booking.com style) */}
+      <MapModal
+        open={mapModalOpen}
+        onClose={() => setMapModalOpen(false)}
+        gyms={visibleGyms}
+        selectedGym={activeGym}
+        onSelectGym={gym => setActiveId(gym ? gym.id : null)}
+        onOpenGym={openGym}
+        searchQuery={query}
       />
     </div>
   );

@@ -2,18 +2,26 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
+  Check,
   ChevronDown,
+  Clock,
   Dumbbell,
   Globe,
   Heart,
+  Lock,
   MapPin,
   Navigation,
+  ParkingCircle,
   Phone,
   Share2,
+  ShowerHead,
   Star,
+  Waves,
+  Wind,
   X,
+  ZoomIn,
 } from 'lucide-react';
-import { FEATURE_LABELS } from '@/data/features';
+import { FEATURE_CATEGORIES, FEATURE_LABELS } from '@/data/features';
 import { useApi } from '@/lib/api';
 import { useCurrency } from '@/lib/currency-context';
 import { useSavedGym, useStoredFeatures } from '@/lib/useStoredQuery';
@@ -26,6 +34,8 @@ interface LocationState {
   gym?: Gym;
 }
 
+// ── LOADING / NOT-FOUND STATES ───────────────────────────────────────────────
+
 export default function GymDetails() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -33,8 +43,9 @@ export default function GymDetails() {
   const { getGym } = useApi();
   const state = location.state as LocationState | null;
 
-  // The map page passes the gym along; fall back to fetching it (e.g. after a refresh).
-  const [gym, setGym] = useState<Gym | null>(state?.gym && state.gym.id === gymId ? state.gym : null);
+  const [gym, setGym] = useState<Gym | null>(
+    state?.gym && state.gym.id === gymId ? state.gym : null,
+  );
   const [loading, setLoading] = useState(!gym);
 
   useEffect(() => {
@@ -49,19 +60,25 @@ export default function GymDetails() {
 
   if (loading) {
     return (
-      <main className="site gym-page">
-        <div className="gym-not-found"><span className="auth-spinner" /></div>
+      <main className="site gp-page">
+        <div className="gp-loading">
+          <span className="auth-spinner" />
+          <p>Loading gym…</p>
+        </div>
       </main>
     );
   }
 
   if (!gym) {
     return (
-      <main className="site gym-page">
-        <div className="gym-not-found">
+      <main className="site gp-page">
+        <div className="gp-not-found">
+          <Dumbbell size={48} />
           <h1>Gym not found</h1>
-          <p>It may have been removed from the map data. Search again to find gyms nearby.</p>
-          <button className="pill-button gd-cta" onClick={() => navigate('/plan')}>Search gyms</button>
+          <p>It may have been removed from the map data.</p>
+          <button className="gp-reserve-btn gp-reserve-btn--primary" onClick={() => navigate('/plan')}>
+            Search gyms
+          </button>
         </div>
       </main>
     );
@@ -70,36 +87,136 @@ export default function GymDetails() {
   return <GymProfile gym={gym} />;
 }
 
-// Built from real map data and the admin's edits; OpenStreetMap has no gym descriptions.
+// ── HELPERS ──────────────────────────────────────────────────────────────────
+
 function describe(gym: Gym, features: string[]): string {
   if (gym.description) return gym.description;
   const parts = [`${gym.name} is a gym${gym.area ? ` in ${gym.area}` : ''}.`];
   if (gym.hours) parts.push(`Listed opening hours: ${gym.hours}.`);
-  if (features.length > 0) parts.push(`Facilities listed on the map: ${features.join(', ')}.`);
+  if (features.length > 0) parts.push(`Facilities listed: ${features.join(', ')}.`);
   else parts.push('No facilities are listed for it on the map yet.');
   return parts.join(' ');
 }
 
+// Priority order for the highlights bar
+const HIGHLIGHT_ORDER = ['parking', 'shower', 'ac', 'lockers', '24x7', 'pool', 'sauna', 'changing', 'water', 'women_only'];
+const HIGHLIGHT_ICONS: Record<string, React.ReactNode> = {
+  parking: <ParkingCircle size={18} />,
+  shower: <ShowerHead size={18} />,
+  ac: <Wind size={18} />,
+  lockers: <Lock size={18} />,
+  '24x7': <Clock size={18} />,
+  pool: <Waves size={18} />,
+  sauna: <Dumbbell size={18} />,
+  changing: <Dumbbell size={18} />,
+  water: <Dumbbell size={18} />,
+  women_only: <Dumbbell size={18} />,
+};
+
+function getDescriptorFromRating(rating: number): string {
+  const score = rating * 2;
+  if (score >= 9.0) return 'Exceptional';
+  if (score >= 8.5) return 'Wonderful';
+  if (score >= 8.0) return 'Very Good';
+  if (score >= 7.0) return 'Good';
+  return 'Pleasant';
+}
+
+// ── LIGHTBOX ─────────────────────────────────────────────────────────────────
+
+function Lightbox({
+  images,
+  startIndex,
+  onClose,
+}: {
+  images: { id: string; url: string; alt: string | null }[];
+  startIndex: number;
+  onClose: () => void;
+}) {
+  const [idx, setIdx] = useState(startIndex);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowRight') setIdx(i => (i + 1) % images.length);
+      if (e.key === 'ArrowLeft') setIdx(i => (i - 1 + images.length) % images.length);
+    }
+    document.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [images.length, onClose]);
+
+  return (
+    <div className="gp-lightbox" onClick={onClose} role="dialog" aria-modal="true" aria-label="Photo gallery">
+      <button className="gp-lightbox__close" onClick={onClose} aria-label="Close gallery">
+        <X size={24} />
+      </button>
+      <button
+        className="gp-lightbox__nav gp-lightbox__nav--prev"
+        onClick={e => { e.stopPropagation(); setIdx(i => (i - 1 + images.length) % images.length); }}
+        aria-label="Previous photo"
+      >
+        ‹
+      </button>
+      <div className="gp-lightbox__inner" onClick={e => e.stopPropagation()}>
+        <img
+          src={images[idx].url}
+          alt={images[idx].alt ?? `Photo ${idx + 1}`}
+          className="gp-lightbox__img"
+        />
+        <p className="gp-lightbox__counter">{idx + 1} / {images.length}</p>
+      </div>
+      <button
+        className="gp-lightbox__nav gp-lightbox__nav--next"
+        onClick={e => { e.stopPropagation(); setIdx(i => (i + 1) % images.length); }}
+        aria-label="Next photo"
+      >
+        ›
+      </button>
+    </div>
+  );
+}
+
+// ── MAIN PROFILE ─────────────────────────────────────────────────────────────
+
 function GymProfile({ gym }: { gym: Gym }) {
   const navigate = useNavigate();
   const { converted } = useCurrency();
+  const { format } = useCurrency();
   const [saved, toggleSaved] = useSavedGym(gym.id);
   const [selectedFeatures, setSelectedFeatures] = useStoredFeatures();
   const [showAllAbout, setShowAllAbout] = useState(false);
   const [shareNote, setShareNote] = useState('');
-  const [photo, setPhoto] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxStart, setLightboxStart] = useState(0);
 
-  // Open at the top, not at the scroll position carried over from the map page.
   useEffect(() => { window.scrollTo(0, 0); }, [gym.id]);
 
   const featureLabels = gym.features.map(id => FEATURE_LABELS[id] ?? id);
-  const starred = Array.from(selectedFeatures);
-  const matched = starred.filter(id => gym.features.includes(id)).length;
   const about = describe(gym, featureLabels);
-  const longAbout = about.length > 170;
+  const longAbout = about.length > 220;
   const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${gym.lat},${gym.lon}`;
   const website = gym.website && /^https?:\/\//.test(gym.website) ? gym.website : null;
-  const current = gym.images[Math.min(photo, gym.images.length - 1)];
+
+  // Highlights: up to 6 features the gym has, in priority order
+  const highlights = HIGHLIGHT_ORDER.filter(id => gym.features.includes(id)).slice(0, 6);
+
+  // Review display
+  const reviewScore = gym.rating !== null ? (gym.rating * 2).toFixed(1) : null;
+  const reviewDescriptor = gym.rating !== null ? getDescriptorFromRating(gym.rating) : null;
+
+  // Photo grid helpers
+  const imgs = gym.images;
+  const hasPhotos = imgs.length > 0;
+
+  function openLightbox(i: number) {
+    if (!hasPhotos) return;
+    setLightboxStart(i);
+    setLightboxOpen(true);
+  }
 
   function removeStarred(id: string) {
     setSelectedFeatures(prev => {
@@ -111,169 +228,350 @@ function GymProfile({ gym }: { gym: Gym }) {
 
   async function share() {
     const data = { title: gym.name, text: gym.address ?? gym.name, url: window.location.href };
-    if (navigator.share) {
-      await navigator.share(data).catch(() => {});
-      return;
-    }
+    if (navigator.share) { await navigator.share(data).catch(() => {}); return; }
     await navigator.clipboard?.writeText(window.location.href);
     setShareNote('Link copied');
     setTimeout(() => setShareNote(''), 2000);
   }
 
   return (
-    <main className="site gym-page">
-      <header className="gd-header">
-        <button className="gd-icon" onClick={() => navigate(-1)} aria-label="Back to results">
-          <ArrowLeft size={22} />
+    <main className="site gp-page">
+
+      {/* ── HEADER ── */}
+      <header className="gp-header">
+        <button className="gp-header__back" onClick={() => navigate(-1)} aria-label="Back to results">
+          <ArrowLeft size={20} />
+          <span>Search results</span>
         </button>
-        <a className="brand" href="/" aria-label="FitPath home">Fit<span>Path</span></a>
-        <div className="gd-header-actions">
+        <a className="brand gp-header__brand" href="/" aria-label="FitPath home">
+          Fit<span>Path</span>
+        </a>
+        <div className="gp-header__actions">
           <CurrencyPicker />
-          {shareNote && <span className="gd-note" role="status">{shareNote}</span>}
-          <button className="gd-icon" onClick={share} aria-label="Share gym">
-            <Share2 size={20} />
+          {shareNote && <span className="gp-share-note" role="status">{shareNote}</span>}
+          <button className="gp-icon-btn" onClick={share} aria-label="Share gym">
+            <Share2 size={18} />
           </button>
-          <button className={`gd-icon${saved ? ' gd-icon--on' : ''}`} onClick={toggleSaved} aria-label={saved ? 'Remove from saved gyms' : 'Save gym'} aria-pressed={saved}>
-            <Heart size={21} fill={saved ? 'currentColor' : 'none'} />
+          <button
+            className={`gp-icon-btn${saved ? ' gp-icon-btn--saved' : ''}`}
+            onClick={toggleSaved}
+            aria-label={saved ? 'Remove from saved' : 'Save gym'}
+            aria-pressed={saved}
+          >
+            <Heart size={18} fill={saved ? 'currentColor' : 'none'} />
           </button>
         </div>
       </header>
 
-      <div className="gd-shell">
-        {current ? (
-          <section className="gd-gallery" aria-label="Photos">
-            <img className="gd-gallery-main" src={current.url} alt={current.alt ?? `${gym.name} photo`} />
-            {gym.images.length > 1 && (
-              <div className="gd-gallery-thumbs">
-                {gym.images.map((img, i) => (
-                  <button key={img.id} type="button" className={i === photo ? 'on' : ''} onClick={() => setPhoto(i)} aria-label={`Show photo ${i + 1}`}>
+      {/* ── PHOTO GALLERY ── */}
+      <section className="gp-gallery" aria-label="Gym photos">
+        {hasPhotos ? (
+          <>
+            <div className="gp-gallery__grid">
+              {/* Main large photo */}
+              <button
+                className="gp-gallery__main"
+                onClick={() => openLightbox(0)}
+                aria-label="Open photo gallery"
+              >
+                <img src={imgs[0].url} alt={imgs[0].alt ?? gym.name} />
+                <div className="gp-gallery__zoom-hint"><ZoomIn size={16} /> View all photos</div>
+              </button>
+
+              {/* Secondary stack */}
+              {imgs.length >= 2 && (
+                <div className="gp-gallery__stack">
+                  <button
+                    className="gp-gallery__secondary"
+                    onClick={() => openLightbox(1)}
+                    aria-label="Open photo 2"
+                  >
+                    <img src={imgs[1].url} alt={imgs[1].alt ?? `${gym.name} photo 2`} />
+                  </button>
+                  {imgs.length >= 3 ? (
+                    <button
+                      className="gp-gallery__secondary gp-gallery__secondary--last"
+                      onClick={() => openLightbox(2)}
+                      aria-label="Open photo 3"
+                    >
+                      <img src={imgs[2].url} alt={imgs[2].alt ?? `${gym.name} photo 3`} />
+                      {imgs.length > 3 && (
+                        <div className="gp-gallery__more-badge">+{imgs.length - 3} photos</div>
+                      )}
+                    </button>
+                  ) : (
+                    <div className="gp-gallery__secondary gp-gallery__secondary--empty">
+                      <Dumbbell size={28} />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Thumbnail strip */}
+            {imgs.length > 3 && (
+              <div className="gp-gallery__thumbs">
+                {imgs.slice(0, 6).map((img, i) => (
+                  <button
+                    key={img.id}
+                    className="gp-gallery__thumb"
+                    onClick={() => openLightbox(i)}
+                    aria-label={`View photo ${i + 1}`}
+                  >
                     <img src={img.url} alt="" loading="lazy" />
                   </button>
                 ))}
+                {imgs.length > 6 && (
+                  <button
+                    className="gp-gallery__thumb gp-gallery__thumb--more"
+                    onClick={() => openLightbox(6)}
+                  >
+                    +{imgs.length - 6}
+                  </button>
+                )}
               </div>
             )}
-          </section>
+          </>
         ) : (
-          <section className="gd-hero" aria-label="Photos">
-            <Dumbbell size={64} />
-            <span>No photos yet</span>
-          </section>
-        )}
-
-        {gym.videos.length > 0 && (
-          <section className="gd-videos" aria-label="Videos">
-            {gym.videos.map(v => (
-              <video key={v.id} controls preload="metadata" playsInline aria-label={v.alt ?? `${gym.name} video`}>
-                <source src={v.url} />
-              </video>
-            ))}
-          </section>
-        )}
-
-        <section className="gd-intro">
-          <div className="gd-title-row">
-            <h1>{gym.name}</h1>
-            {gym.openNow !== null && (
-              <span className={`gd-open${gym.openNow ? '' : ' gd-open--closed'}`}>{gym.openNow ? 'Open' : 'Closed'}</span>
-            )}
+          <div className="gp-gallery__placeholder">
+            <Dumbbell size={56} />
+            <span>No photos available yet</span>
           </div>
-          <div className="gd-rating">
-            {gym.rating !== null ? (
-              <>
-                <Star size={20} fill="currentColor" />
-                <strong>{gym.rating}</strong>
-                <span>({gym.reviewCount} {gym.reviewCount === 1 ? 'review' : 'reviews'})</span>
-              </>
-            ) : (
-              <span>No reviews yet</span>
-            )}
-            {gym.distanceKm > 0 && (
-              <>
-                <i aria-hidden="true" />
-                <MapPin size={18} />
-                <strong title="From your search">{gym.distanceKm} KM</strong>
-              </>
-            )}
+        )}
+      </section>
+
+      {/* Videos */}
+      {gym.videos.length > 0 && (
+        <section className="gp-videos" aria-label="Gym videos">
+          {gym.videos.map(v => (
+            <video key={v.id} controls preload="metadata" playsInline aria-label={v.alt ?? `${gym.name} video`}>
+              <source src={v.url} />
+            </video>
+          ))}
+        </section>
+      )}
+
+      {/* ── 2-COLUMN BODY ── */}
+      <div className="gp-body">
+
+        {/* LEFT COLUMN — main content */}
+        <div className="gp-body__main">
+
+          {/* Title Section */}
+          <div className="gp-title-section">
+            <div className="gp-title-section__top">
+              <h1 className="gp-gym-name">{gym.name}</h1>
+              <div className="gp-display-stars" aria-label="Gym category">
+                {[...Array(4)].map((_, i) => (
+                  <Star key={i} size={16} fill="#FFB703" color="#FFB703" />
+                ))}
+              </div>
+              {gym.openNow !== null && (
+                <span className={`gp-status-badge${gym.openNow ? ' gp-status-badge--open' : ' gp-status-badge--closed'}`}>
+                  {gym.openNow ? 'Open Now' : 'Closed'}
+                </span>
+              )}
+            </div>
+
+            <div className="gp-title-section__location">
+              {gym.area && <span className="gp-location-area">{gym.area}</span>}
+              {gym.distanceKm > 0 && (
+                <>
+                  <span className="gp-location-sep">·</span>
+                  <MapPin size={14} />
+                  <span>{gym.distanceKm} km from your search</span>
+                </>
+              )}
+            </div>
+
+            <div className="gp-title-section__address">
+              <MapPin size={15} className="gp-address-pin" />
+              <span>{gym.address ?? (gym.area ? `${gym.area} (full address not listed)` : 'Address not listed')}</span>
+              <a className="gp-directions-link" href={directionsUrl} target="_blank" rel="noreferrer">
+                <Navigation size={13} />
+                Get Directions
+              </a>
+            </div>
           </div>
-          <p className="gd-address"><MapPin size={17} fill="currentColor" /> {gym.address ?? (gym.area ? `${gym.area} (full address not listed)` : 'Address not listed')}</p>
-          <a className="gd-directions" href={directionsUrl} target="_blank" rel="noreferrer">
-            <Navigation size={16} /> Get Directions
-          </a>
-          {featureLabels.length > 0 && (
-            <div className="gd-tags">
-              {featureLabels.map(label => <span key={label}>{label}</span>)}
+
+          {/* Highlights Bar */}
+          {highlights.length > 0 && (
+            <div className="gp-highlights">
+              {highlights.map(id => (
+                <div key={id} className="gp-highlight-chip">
+                  <span className="gp-highlight-chip__icon">{HIGHLIGHT_ICONS[id] ?? <Dumbbell size={18} />}</span>
+                  <span className="gp-highlight-chip__label">{FEATURE_LABELS[id] ?? id}</span>
+                </div>
+              ))}
+              <a href="#features" className="gp-highlight-chip gp-highlight-chip--link">
+                See all facilities →
+              </a>
             </div>
           )}
-        </section>
 
-        <BookingPanel key={gym.id} gym={gym} />
+          {/* Pass Availability Table */}
+          <BookingPanel key={gym.id} gym={gym} />
 
-        <section className="gd-card gd-musthaves">
-          <div className="gd-row">
-            <h2>Your must-haves <b>{starred.length}</b></h2>
-            <button type="button" className="gd-link" onClick={() => navigate('/map')}>
-              {starred.length > 0 ? 'Compare on map' : 'Pick features'}
-            </button>
-          </div>
-          <div className="gd-meter" role="img" aria-label={`${matched} of ${starred.length} must-haves listed`}>
-            <span style={{ width: starred.length ? `${(matched / starred.length) * 100}%` : '0%' }} />
-          </div>
-          <p>
-            {starred.length > 0
-              ? `${matched} of ${starred.length} must-haves are listed for this gym.`
-              : 'Star what matters on the map page, and we’ll match it across gyms.'}
-          </p>
-        </section>
+          {/* About */}
+          <section className="gp-section">
+            <h2 className="gp-section-title">About {gym.name}</h2>
+            <p className="gp-about-text">
+              {showAllAbout || !longAbout ? about : `${about.slice(0, 220).trimEnd()}…`}
+            </p>
+            {longAbout && (
+              <button
+                type="button"
+                className="gp-text-link gp-expand-btn"
+                onClick={() => setShowAllAbout(v => !v)}
+              >
+                {showAllAbout ? 'Show less' : 'Read more'}
+                <ChevronDown size={15} className={showAllAbout ? 'gp-flip' : ''} />
+              </button>
+            )}
+          </section>
 
-        {starred.length > 0 && (
-          <section className="gd-section">
-            <div className="gd-row">
-              <h2>Features you starred ({starred.length})</h2>
-              <button type="button" className="gd-link" onClick={() => navigate('/map')}>Edit</button>
+          {/* Full Features Grid */}
+          <section className="gp-section" id="features">
+            <h2 className="gp-section-title">Facilities</h2>
+            <div className="gp-features-grid">
+              {FEATURE_CATEGORIES.map(cat => (
+                <div key={cat.title} className="gp-feature-cat">
+                  <h3 className="gp-feature-cat__title">{cat.title}</h3>
+                  <ul className="gp-feature-cat__list">
+                    {cat.features.map(feat => {
+                      const has = gym.features.includes(feat.id);
+                      return (
+                        <li key={feat.id} className={`gp-feature-item${has ? ' gp-feature-item--available' : ' gp-feature-item--unavailable'}`}>
+                          <span className="gp-feature-item__indicator">
+                            {has ? <Check size={13} /> : <X size={13} />}
+                          </span>
+                          <feat.Icon size={14} className="gp-feature-item__icon" />
+                          <span className="gp-feature-item__label">{feat.label}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))}
             </div>
-            <div className="gd-chips">
-              {starred.map(id => {
-                const has = gym.features.includes(id);
-                return (
-                  <span key={id} className={has ? '' : 'gd-chip-miss'} title={has ? 'Listed for this gym' : 'Not listed for this gym'}>
-                    {FEATURE_LABELS[id] ?? id}
-                    <button type="button" onClick={() => removeStarred(id)} aria-label={`Remove ${FEATURE_LABELS[id] ?? id}`}>
-                      <X size={14} />
-                    </button>
+          </section>
+
+          {/* Gym Info (House Rules) */}
+          <section className="gp-section">
+            <h2 className="gp-section-title">Gym Info</h2>
+            <dl className="gp-info-grid">
+              <div className="gp-info-row">
+                <dt>Opening hours</dt>
+                <dd>{gym.hours ?? 'Not listed'}</dd>
+              </div>
+              {gym.phone && (
+                <div className="gp-info-row">
+                  <dt>Phone</dt>
+                  <dd>
+                    <a href={`tel:${gym.phone}`} className="gp-info-link">
+                      <Phone size={13} /> {gym.phone}
+                    </a>
+                  </dd>
+                </div>
+              )}
+              {website && (
+                <div className="gp-info-row">
+                  <dt>Website</dt>
+                  <dd>
+                    <a href={website} target="_blank" rel="noreferrer" className="gp-info-link">
+                      <Globe size={13} /> Visit website
+                    </a>
+                  </dd>
+                </div>
+              )}
+              {gym.distanceKm > 0 && (
+                <div className="gp-info-row">
+                  <dt>Distance from your search</dt>
+                  <dd>{gym.distanceKm} km</dd>
+                </div>
+              )}
+            </dl>
+          </section>
+
+          {/* Reviews */}
+          <Reviews key={`reviews-${gym.id}`} gymId={gym.id} />
+
+          {/* Price disclaimer */}
+          {(gym.bookable.length === 0 || converted) && (
+            <p className="gp-price-note">
+              {gym.bookable.length === 0 && 'Prices shown are sample estimates — this gym has not set its prices yet. '}
+              {converted && 'Prices are converted from rupees at current exchange rates and are for reference only.'}
+            </p>
+          )}
+        </div>
+
+        {/* RIGHT COLUMN — sticky score + book widget */}
+        <aside className="gp-body__aside">
+          <div className="gp-sticky-widget">
+            {/* Review Score */}
+            <div className="gp-widget-score">
+              {reviewScore !== null ? (
+                <>
+                  <div className="gp-widget-score__badge">{reviewScore}</div>
+                  <div className="gp-widget-score__meta">
+                    <strong>{reviewDescriptor}</strong>
+                    <span>{gym.reviewCount} {gym.reviewCount === 1 ? 'review' : 'reviews'}</span>
+                  </div>
+                </>
+              ) : (
+                <div className="gp-widget-score__meta">
+                  <strong>No reviews yet</strong>
+                  <span>Be the first to review</span>
+                </div>
+              )}
+            </div>
+
+            {/* Price teaser */}
+            <div className="gp-widget-price">
+              <span className="gp-widget-price__from">From</span>
+              <strong className="gp-widget-price__amount">{format(gym.prices.day)}</strong>
+              <span className="gp-widget-price__unit">/ day pass</span>
+            </div>
+
+            {/* CTA */}
+            <a href="#availability" className="gp-widget-cta">
+              Book a Pass
+            </a>
+            <p className="gp-widget-note">Nothing charged now — pay at the gym</p>
+
+            {/* Quick highlights in widget */}
+            {highlights.length > 0 && (
+              <div className="gp-widget-perks">
+                {highlights.slice(0, 3).map(id => (
+                  <span key={id} className="gp-widget-perk">
+                    <Check size={12} /> {FEATURE_LABELS[id] ?? id}
                   </span>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        <section className="gd-section">
-          <h2>About {gym.name}</h2>
-          <p className="gd-about">{showAllAbout || !longAbout ? about : `${about.slice(0, 170).trimEnd()}…`}</p>
-          {longAbout && (
-            <button type="button" className="gd-link" onClick={() => setShowAllAbout(v => !v)}>
-              {showAllAbout ? 'Show less' : 'Read more'} <ChevronDown size={16} className={showAllAbout ? 'gd-flip' : ''} />
-            </button>
-          )}
-        </section>
-
-        <section className="gd-section">
-          <h2>Gym info</h2>
-          <dl className="gd-info">
-            <div><dt>Opening hours</dt><dd>{gym.hours ?? 'Not listed'}</dd></div>
-            {gym.phone && <div><dt>Phone</dt><dd><a href={`tel:${gym.phone}`}><Phone size={14} /> {gym.phone}</a></dd></div>}
-            {website && <div><dt>Website</dt><dd><a href={website} target="_blank" rel="noreferrer"><Globe size={14} /> Visit website</a></dd></div>}
-            {gym.distanceKm > 0 && <div><dt>From your search</dt><dd>{gym.distanceKm} km</dd></div>}
-          </dl>
-        </section>
-
-        <Reviews key={`reviews-${gym.id}`} gymId={gym.id} />
-
-        <p className="gd-mock-note">
-          {gym.bookable.length === 0 && 'This gym has not set its prices yet, so the prices shown are samples. '}
-          {converted && 'Prices are converted from rupees at current exchange rates, for reference only.'}
-        </p>
+                ))}
+              </div>
+            )}
+          </div>
+        </aside>
       </div>
+
+      {/* Mobile sticky bottom bar */}
+      <div className="gp-mobile-bar">
+        <div className="gp-mobile-bar__price">
+          <span>From</span>
+          <strong>{format(gym.prices.day)}/day</strong>
+        </div>
+        <a href="#availability" className="gp-mobile-bar__btn">
+          Book a Pass
+        </a>
+      </div>
+
+      {/* Lightbox */}
+      {lightboxOpen && hasPhotos && (
+        <Lightbox
+          images={imgs}
+          startIndex={lightboxStart}
+          onClose={() => setLightboxOpen(false)}
+        />
+      )}
     </main>
   );
 }

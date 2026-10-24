@@ -1,29 +1,53 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Check } from 'lucide-react';
+import { Check, ChevronRight } from 'lucide-react';
 import type { Booking, Gym, Plan } from '@/types';
 import { useApi } from '@/lib/api';
 import { useCurrency } from '@/lib/currency-context';
 import { formatDateRange, PLAN_LABELS, PLANS } from '@/lib/plans';
+import { Link } from 'react-router-dom';
+import { Users } from 'lucide-react';
 
-// Booking is reserve-only for now: the user picks a plan and the number of people, the dates start
-// today automatically, and payment happens at the gym.
-export default function BookingPanel({ gym }: { gym: Gym }) {
+const PLAN_DESCRIPTIONS: Record<Plan, string> = {
+  day: 'Full day entry · Access to all facilities',
+  week: '7 consecutive days · Access to all facilities',
+  month: '30 days · Access to all facilities',
+  quarter: '90 days · Best value for regulars',
+  half: '6 months · Long-term savings',
+  year: '12 months · Maximum savings',
+};
+
+const PLAN_INCLUSIONS = [
+  'Access to all listed facilities',
+  'Starts today automatically',
+  'Pay at the gym — nothing charged now',
+  'Instant confirmation',
+];
+
+function getSelectedPlanInclusions(plan: Plan): string[] {
+  const base = [...PLAN_INCLUSIONS];
+  if (plan === 'day') base.splice(2, 0, 'Full day entry');
+  if (plan === 'year' || plan === 'half') base.push('Priority access during peak hours');
+  return base;
+}
+
+interface PassTableProps {
+  gym: Gym;
+}
+
+export default function BookingPanel({ gym }: PassTableProps) {
   const { bookings } = useApi();
   const { format } = useCurrency();
-  const [plan, setPlan] = useState<Plan>(gym.bookable[0] ?? 'month');
+  const [selectedPlan, setSelectedPlan] = useState<Plan>(gym.bookable[0] ?? 'month');
   const [people, setPeople] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [booked, setBooked] = useState<Booking | null>(null);
 
-  const canBook = gym.bookable.includes(plan);
-
   async function book() {
     setSubmitting(true);
     setError('');
     try {
-      setBooked(await bookings.create(gym.id, plan, people));
+      setBooked(await bookings.create(gym.id, selectedPlan, people));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't book. Please try again.");
     } finally {
@@ -33,61 +57,179 @@ export default function BookingPanel({ gym }: { gym: Gym }) {
 
   if (booked) {
     return (
-      <section className="gd-section gd-book" aria-live="polite">
-        <div className="book-done">
-          <span className="book-done-icon"><Check size={22} /></span>
-          <div>
-            <h2>Booked: {PLAN_LABELS[booked.plan]}</h2>
-            <p>{formatDateRange(booked.startDate, booked.endDate)} · {booked.people} {booked.people === 1 ? 'person' : 'people'}</p>
-            <p><strong>{format(booked.amountInr)}</strong> to pay at the gym.</p>
-            <Link className="gd-link" to="/bookings">View my bookings</Link>
+      <section className="gp-section" id="availability" aria-live="polite">
+        <h2 className="gp-section-title">Availability</h2>
+        <div className="gp-book-success">
+          <div className="gp-book-success__icon">
+            <Check size={28} />
+          </div>
+          <div className="gp-book-success__body">
+            <h3>Booking confirmed!</h3>
+            <p>
+              <strong>{PLAN_LABELS[booked.plan]}</strong> ·{' '}
+              {formatDateRange(booked.startDate, booked.endDate)}
+            </p>
+            <p>
+              {booked.people} {booked.people === 1 ? 'person' : 'people'} ·{' '}
+              <strong>{format(booked.amountInr)}</strong> to pay at the gym
+            </p>
+            <Link className="gp-text-link" to="/bookings">
+              View my bookings →
+            </Link>
           </div>
         </div>
       </section>
     );
   }
 
+  const isSampleOnly = gym.bookable.length === 0;
+
   return (
-    <section className="gd-section gd-book">
-      <h2>Book this gym</h2>
-      <div className="gd-options" role="radiogroup" aria-label="Membership plan">
-        {PLANS.map(p => {
-          const available = gym.bookable.includes(p);
+    <section className="gp-section" id="availability">
+      <h2 className="gp-section-title">Availability</h2>
+
+      {isSampleOnly && (
+        <div className="gp-sample-notice">
+          Pricing not confirmed yet by this gym. Prices shown are estimates only and cannot be
+          booked.
+        </div>
+      )}
+
+      {/* Pass Table */}
+      <div className="gp-pass-table">
+        {/* Table Header */}
+        <div className="gp-pass-table__header">
+          <div className="gp-pass-table__col gp-pass-table__col--plan">Pass / Membership</div>
+          <div className="gp-pass-table__col gp-pass-table__col--guests">Guests</div>
+          <div className="gp-pass-table__col gp-pass-table__col--price">Price</div>
+          <div className="gp-pass-table__col gp-pass-table__col--includes">What's Included</div>
+          <div className="gp-pass-table__col gp-pass-table__col--action">Select</div>
+        </div>
+
+        {/* Plan Rows */}
+        {PLANS.map(plan => {
+          const isBookable = gym.bookable.includes(plan);
+          const isSelected = selectedPlan === plan;
+          const price = gym.prices[plan];
+          const samplePrice = Math.round(price * 1.3);
+          const inclusions = getSelectedPlanInclusions(plan);
+
           return (
-            <button
-              key={p}
-              type="button"
-              role="radio"
-              aria-checked={plan === p}
-              className={`gd-option${plan === p ? ' gd-option--on' : ''}${available ? '' : ' gd-option--sample'}`}
-              onClick={() => setPlan(p)}
+            <div
+              key={plan}
+              className={`gp-pass-row${isSelected ? ' gp-pass-row--selected' : ''}`}
+              onClick={() => setSelectedPlan(plan)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={e => e.key === 'Enter' && setSelectedPlan(plan)}
+              aria-selected={isSelected}
             >
-              <strong>{format(gym.prices[p])}</strong>
-              <span>{PLAN_LABELS[p]}</span>
-              <em>{available ? 'per person' : 'sample price'}</em>
-            </button>
+              {/* Plan Name */}
+              <div className="gp-pass-row__plan">
+                <strong className="gp-pass-row__plan-name">{PLAN_LABELS[plan]}</strong>
+                <span className="gp-pass-row__plan-desc">{PLAN_DESCRIPTIONS[plan]}</span>
+                {!isBookable && (
+                  <span className="gp-pass-row__sample-badge">Sample price</span>
+                )}
+              </div>
+
+              {/* Guests */}
+              <div className="gp-pass-row__guests">
+                <Users size={16} />
+                <span>{people}</span>
+              </div>
+
+              {/* Price */}
+              <div className="gp-pass-row__price">
+                {isBookable ? (
+                  <>
+                    <span className="gp-pass-row__orig-price">{format(samplePrice)}</span>
+                    <strong className="gp-pass-row__main-price">{format(price)}</strong>
+                  </>
+                ) : (
+                  <>
+                    <strong className="gp-pass-row__main-price gp-pass-row__main-price--sample">
+                      {format(price)}
+                    </strong>
+                  </>
+                )}
+                <span className="gp-pass-row__per">per person</span>
+              </div>
+
+              {/* Inclusions */}
+              <div className="gp-pass-row__includes">
+                {inclusions.map(item => (
+                  <span key={item} className="gp-pass-row__inclusion">
+                    <Check size={12} className="gp-pass-row__check" />
+                    {item}
+                  </span>
+                ))}
+              </div>
+
+              {/* Action */}
+              <div className="gp-pass-row__action" onClick={e => e.stopPropagation()}>
+                {/* People Counter */}
+                {isSelected && !isSampleOnly && (
+                  <div className="gp-people-counter">
+                    <button
+                      type="button"
+                      className="gp-counter-btn"
+                      onClick={() => setPeople(n => Math.max(1, n - 1))}
+                      disabled={people <= 1}
+                      aria-label="Fewer people"
+                    >
+                      −
+                    </button>
+                    <span className="gp-counter-val">{people}</span>
+                    <button
+                      type="button"
+                      className="gp-counter-btn"
+                      onClick={() => setPeople(n => Math.min(99, n + 1))}
+                      aria-label="More people"
+                    >
+                      +
+                    </button>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  className={`gp-reserve-btn${isSelected ? ' gp-reserve-btn--primary' : ' gp-reserve-btn--ghost'}`}
+                  onClick={() => {
+                    setSelectedPlan(plan);
+                    if (isSelected && !isSampleOnly) void book();
+                  }}
+                  disabled={isSampleOnly || (isSelected && submitting)}
+                  aria-label={`Book ${PLAN_LABELS[plan]}`}
+                >
+                  {isSelected ? (
+                    submitting ? (
+                      'Booking…'
+                    ) : isSampleOnly ? (
+                      'Unavailable'
+                    ) : (
+                      <>
+                        Book this pass <ChevronRight size={14} />
+                      </>
+                    )
+                  ) : (
+                    'Select'
+                  )}
+                </button>
+
+                {isSelected && !isSampleOnly && (
+                  <p className="gp-reserve-note">Won't be charged now</p>
+                )}
+              </div>
+            </div>
           );
         })}
       </div>
 
-      {gym.bookable.length === 0 ? (
-        <p className="book-note">Booking opens when this gym sets its prices. The prices above are samples.</p>
-      ) : (
-        <>
-          <div className="book-row">
-            <span id="book-people">People</span>
-            <div className="people-counter book-counter" role="group" aria-labelledby="book-people">
-              <button type="button" className="counter-btn" onClick={() => setPeople(n => Math.max(1, n - 1))} disabled={people <= 1} aria-label="Fewer people">−</button>
-              <span className="counter-value">{people}</span>
-              <button type="button" className="counter-btn" onClick={() => setPeople(n => Math.min(99, n + 1))} aria-label="More people">+</button>
-            </div>
-          </div>
-          <p className="book-note">Starts today. Pay at the gym, nothing is charged now.</p>
-          {error && <p className="field-error" role="alert">{error}</p>}
-          <button type="button" className="pill-button book-submit" onClick={book} disabled={!canBook || submitting}>
-            {submitting ? 'Booking…' : canBook ? `Book ${PLAN_LABELS[plan].toLowerCase()} · ${format(gym.prices[plan] * people)}` : 'Not available yet'}
-          </button>
-        </>
+      {error && (
+        <p className="field-error" role="alert" style={{ marginTop: 12 }}>
+          {error}
+        </p>
       )}
     </section>
   );
