@@ -4,6 +4,7 @@ import { UserButton } from '@clerk/react';
 import { ArrowRight, MapPin, Users } from 'lucide-react';
 import type { Place, SearchQuery } from '@/types';
 import { useApi } from '@/lib/api';
+import { setStoredScrollY } from '@/lib/useStoredQuery';
 
 interface Props {
   initial: SearchQuery | null; // the saved search, so "Edit" starts from it
@@ -45,6 +46,7 @@ export default function SearchPage({ initial, onSearch }: Props) {
       const place = !typed
         ? await getMyLocation()
         : savedPlace && typed === savedPlace.label ? savedPlace : await geocode(typed);
+      setStoredScrollY(0);
       onSearch({ place, people });
       navigate('/map');
     } catch (err) {

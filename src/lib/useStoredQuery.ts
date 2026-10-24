@@ -1,11 +1,118 @@
 import { useCallback, useState } from 'react';
-import type { Place, SearchQuery } from '@/types';
+import type { Gym, Place, SearchQuery } from '@/types';
 
 // Saved in localStorage so they survive refreshes, closed tabs and browser restarts.
 // clearStoredData() wipes them on sign-out.
 const QUERY_KEY = 'trace:last-search';
 const FEATURES_KEY = 'trace:features';
 const SAVED_GYMS_KEY = 'trace:saved-gyms';
+const SEARCH_RESULTS_KEY = 'fitpath:search-results';
+const SEARCH_FILTERS_KEY = 'fitpath:search-filters';
+const SEARCH_SCROLL_KEY = 'fitpath:search-scroll';
+
+// 30-minute freshness for cached search results
+const CACHE_TTL_MS = 30 * 60 * 1000;
+
+export interface StoredFilters {
+  sort?: string;
+  priceRange?: [number, number];
+  minRating?: number | null;
+  openNowOnly?: boolean;
+}
+
+interface CachedResultsPayload {
+  queryKey: string;
+  gyms: Gym[];
+  timestamp: number;
+}
+
+// In-memory cache for instant zero-latency page transitions
+let inMemorySearchResults: CachedResultsPayload | null = null;
+
+export function makeQueryKey(q: SearchQuery | null): string {
+  if (!q || !q.place) return '';
+  return `${q.place.lat.toFixed(4)},${q.place.lon.toFixed(4)}`;
+}
+
+export function getCachedSearchResults(query: SearchQuery | null): Gym[] | null {
+  if (!query || !query.place) return null;
+  const key = makeQueryKey(query);
+  if (!key) return null;
+
+  // 1. Check in-memory cache first (immediate)
+  if (inMemorySearchResults && inMemorySearchResults.queryKey === key) {
+    if (Date.now() - inMemorySearchResults.timestamp < CACHE_TTL_MS) {
+      return inMemorySearchResults.gyms;
+    }
+  }
+
+  // 2. Check localStorage
+  try {
+    const raw = localStorage.getItem(SEARCH_RESULTS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedResultsPayload;
+    if (parsed.queryKey === key && Date.now() - parsed.timestamp < CACHE_TTL_MS) {
+      inMemorySearchResults = parsed;
+      return parsed.gyms;
+    }
+  } catch {
+    // ignore
+  }
+
+  return null;
+}
+
+export function setCachedSearchResults(query: SearchQuery, gyms: Gym[]) {
+  const key = makeQueryKey(query);
+  if (!key) return;
+
+  const payload: CachedResultsPayload = {
+    queryKey: key,
+    gyms,
+    timestamp: Date.now(),
+  };
+
+  inMemorySearchResults = payload;
+  try {
+    localStorage.setItem(SEARCH_RESULTS_KEY, JSON.stringify(payload));
+  } catch {
+    // ignore storage quota errors
+  }
+}
+
+export function getStoredFilters(): StoredFilters | null {
+  try {
+    const raw = sessionStorage.getItem(SEARCH_FILTERS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredFilters(filters: StoredFilters) {
+  try {
+    sessionStorage.setItem(SEARCH_FILTERS_KEY, JSON.stringify(filters));
+  } catch {
+    // ignore
+  }
+}
+
+export function getStoredScrollY(): number {
+  try {
+    const val = sessionStorage.getItem(SEARCH_SCROLL_KEY);
+    return val ? parseInt(val, 10) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function setStoredScrollY(y: number) {
+  try {
+    sessionStorage.setItem(SEARCH_SCROLL_KEY, String(Math.max(0, Math.round(y))));
+  } catch {
+    // ignore
+  }
+}
 
 function isPlace(value: unknown): value is Place {
   const p = value as Place | null;
@@ -34,7 +141,19 @@ function readFeatures(): Set<string> {
 }
 
 export function clearStoredData() {
-  for (const key of [QUERY_KEY, FEATURES_KEY, SAVED_GYMS_KEY, 'trace:deals']) localStorage.removeItem(key); // 'trace:deals' is from an older version
+  for (const key of [
+    QUERY_KEY,
+    FEATURES_KEY,
+    SAVED_GYMS_KEY,
+    SEARCH_RESULTS_KEY,
+    SEARCH_FILTERS_KEY,
+    SEARCH_SCROLL_KEY,
+    'trace:deals',
+  ]) {
+    localStorage.removeItem(key);
+    sessionStorage.removeItem(key);
+  }
+  inMemorySearchResults = null;
 }
 
 function readJson<T>(key: string, fallback: T): T {

@@ -8,7 +8,16 @@ import { useApi } from '@/lib/api';
 import { useCurrency } from '@/lib/currency-context';
 import { useIsAdmin } from '@/lib/useIsAdmin';
 import { useIsVendor } from '@/lib/useIsVendor';
-import { useStoredFeatures } from '@/lib/useStoredQuery';
+import {
+  getCachedSearchResults,
+  getStoredFilters,
+  getStoredScrollY,
+  makeQueryKey,
+  setCachedSearchResults,
+  setStoredFilters,
+  setStoredScrollY,
+  useStoredFeatures,
+} from '@/lib/useStoredQuery';
 import CurrencyPicker from '@/components/CurrencyPicker';
 import SearchRibbon from '@/components/booking/SearchRibbon';
 import SidebarFilters from '@/components/booking/SidebarFilters';
@@ -33,18 +42,32 @@ export default function MapView({ query }: Props) {
   const isAdmin = useIsAdmin();
   const isVendor = useIsVendor();
 
-  const [gyms, setGyms] = useState<Gym[]>([]);
-  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  // Instant cache retrieval so returning from a gym profile doesn't re-search
+  const cachedGyms = useMemo(() => getCachedSearchResults(query), [query]);
+  const initialFilters = useMemo(() => getStoredFilters(), []);
+
+  const [gyms, setGyms] = useState<Gym[]>(() => cachedGyms ?? []);
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>(() => (cachedGyms ? 'ready' : 'loading'));
   const [error, setError] = useState('');
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  // Filter & Sort States
+  // Filter & Sort States (restored from saved search session if present)
   const [selectedFeatures, setSelectedFeatures] = useStoredFeatures();
-  const [sort, setSort] = useState<SortMode>('closest');
+  const [sort, setSort] = useState<SortMode>((initialFilters?.sort as SortMode) ?? 'closest');
   const [attempt, setAttempt] = useState(0);
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, MAX_PRICE_DEFAULT]);
-  const [minRating, setMinRating] = useState<number | null>(null);
-  const [openNowOnly, setOpenNowOnly] = useState(false);
+  const [priceRange, setPriceRange] = useState<[number, number]>(initialFilters?.priceRange ?? [0, MAX_PRICE_DEFAULT]);
+  const [minRating, setMinRating] = useState<number | null>(initialFilters?.minRating ?? null);
+  const [openNowOnly, setOpenNowOnly] = useState(initialFilters?.openNowOnly ?? false);
+
+  // Sync filter changes to session storage so navigating back preserves them
+  useEffect(() => {
+    setStoredFilters({
+      sort,
+      priceRange,
+      minRating,
+      openNowOnly,
+    });
+  }, [sort, priceRange, minRating, openNowOnly]);
 
   // Map Modal
   const [mapModalOpen, setMapModalOpen] = useState(false);
@@ -60,10 +83,56 @@ export default function MapView({ query }: Props) {
   });
 
   const activeRowRef = useRef<HTMLElement | null>(null);
+  const lastFetchedKeyRef = useRef<string>(cachedGyms ? makeQueryKey(query) : '');
+  const restoredScrollRef = useRef(false);
 
-  // Fetch gyms for query
+  // Restore scroll position when search results are ready
+  useEffect(() => {
+    if (status === 'ready' && gyms.length > 0 && !restoredScrollRef.current) {
+      const savedY = getStoredScrollY();
+      if (savedY > 0) {
+        restoredScrollRef.current = true;
+        requestAnimationFrame(() => {
+          window.scrollTo({ top: savedY, behavior: 'instant' });
+        });
+      }
+    }
+  }, [status, gyms.length]);
+
+  // Continuously record scroll position so returning to results keeps exact position
+  useEffect(() => {
+    let timer: number;
+    const handleScroll = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        setStoredScrollY(window.scrollY);
+      }, 150);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
+  // Fetch gyms for query if not already in cache
   useEffect(() => {
     if (!query) return;
+    const currentKey = makeQueryKey(query);
+
+    // If we already have gyms loaded for this exact location query and this is not a manual retry, skip fetching
+    if (gyms.length > 0 && lastFetchedKeyRef.current === currentKey && attempt === 0) {
+      return;
+    }
+
+    const cached = getCachedSearchResults(query);
+    if (cached && attempt === 0) {
+      setGyms(cached);
+      setStatus('ready');
+      lastFetchedKeyRef.current = currentKey;
+      return;
+    }
+
     let cancelled = false;
     setStatus('loading');
     setActiveId(null);
@@ -72,7 +141,9 @@ export default function MapView({ query }: Props) {
       .then(result => {
         if (!cancelled) {
           setGyms(result.gyms);
+          setCachedSearchResults(query, result.gyms);
           setStatus('ready');
+          lastFetchedKeyRef.current = currentKey;
         }
       })
       .catch(err => {
@@ -167,6 +238,7 @@ export default function MapView({ query }: Props) {
   const placeLabel = query.place.label === 'My location' ? 'Your location' : query.place.label;
 
   function openGym(gym: Gym) {
+    setStoredScrollY(window.scrollY);
     navigate(`/gym/${gym.id}`, { state: { gym } });
   }
 
