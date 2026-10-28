@@ -5,6 +5,7 @@
 // Ported from the FitPath app's geo helpers.
 
 import OpeningHours from 'opening_hours';
+import { timeZoneAt, wallClockIn } from './zones.js';
 
 export type Coordinates = { lat: number; lon: number };
 
@@ -63,12 +64,8 @@ export function haversineKm(a: Coordinates, b: Coordinates): number {
   return R * 2 * Math.asin(Math.sqrt(h));
 }
 
-// India's bounding box (west,south,east,north): keeps lookups from resolving to a
-// same-named place elsewhere in the world.
-const INDIA_VIEWBOX = '68.0,6.5,97.5,37.5';
-
 export async function geocode(query: string): Promise<(Coordinates & { displayName: string }) | null> {
-  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=in&viewbox=${INDIA_VIEWBOX}&bounded=1&q=${encodeURIComponent(query)}`;
+  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(query)}`;
   const res = await fetchWithRetry(url, { headers: HEADERS });
   if (!res.ok) throw new Error('Location lookup failed. Please try again.');
   const data = (await res.json()) as Array<{ lat: string; lon: string; display_name: string }>;
@@ -121,14 +118,11 @@ function formatAddress(tags: Record<string, string>): string | null {
   return parts.length > 0 ? parts.join(', ') : null;
 }
 
-// The app is India-only and India has no daylight saving, so evaluate opening hours on
-// India's wall clock: shift "now" so the server's local getters read IST (UTC+5:30).
-function isOpenNow(hours: string | undefined): boolean | null {
+// Opening hours are written in the gym's local time, so "now" is read off that gym's own clock.
+function isOpenNow(hours: string | undefined, lat: number, lon: number): boolean | null {
   if (!hours) return null;
   try {
-    const now = new Date();
-    const ist = new Date(now.getTime() + (330 + now.getTimezoneOffset()) * 60_000);
-    return new OpeningHours(hours).getState(ist);
+    return new OpeningHours(hours).getState(wallClockIn(timeZoneAt(lat, lon)));
   } catch {
     return null;
   }
@@ -158,7 +152,7 @@ function toApiGym(el: OsmElement, distanceKm: number): ApiGym | null {
     area: tags['addr:suburb'] ?? tags['addr:city'] ?? tags['addr:town'] ?? tags['addr:district'] ?? tags['addr:neighborhood'] ?? null,
     distanceKm,
     hours: tags.opening_hours ?? null,
-    openNow: isOpenNow(tags.opening_hours),
+    openNow: isOpenNow(tags.opening_hours, lat, lon),
     phone: tags.phone ?? tags['contact:phone'] ?? null,
     website: tags.website ?? tags['contact:website'] ?? null,
     features: featuresFromTags(tags),

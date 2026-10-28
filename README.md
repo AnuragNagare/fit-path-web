@@ -1,6 +1,6 @@
 # FitPath
 
-Find gyms in any area you type, or within 10 km of where you are. India only.
+Find gyms in any area you type, or within 10 km of where you are. Search works for places anywhere in the world; the rest of the app (prices in rupees, India's calendar) is unchanged.
 
 - Frontend: Vite + React (`src/`)
 - API: Vercel functions (`api/`), using free OpenStreetMap services (Nominatim, Overpass)

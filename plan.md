@@ -100,3 +100,15 @@ Transform FitPath’s gym discovery page (`src/pages/MapView.tsx`) from its curr
 - [ ] **Phase 4: Verification & Validation**
   - Run build checks (`npm run build`) to ensure type safety and error-free compilation.
   - Verify layout responsiveness, filter interactions, sorting, and map modal synchronization.
+
+
+---
+
+# Round 8 — worldwide search only (2026-10-28)
+
+Searching for a place now works anywhere in the world (for example Washington, DC), and the gyms shown are the ones around that place. Nothing else changed.
+
+- `api/_lib/geo.ts`: the address lookup no longer limits results to India. "Open now" in the results is read on each gym's own clock (time zone from its coordinates, `api/_lib/zones.ts`, `tz-lookup`), because opening hours are written in local time and India's clock would show wrong "Closed" labels abroad.
+- `api/geocode.ts`: the "not found" message no longer says India.
+- Everything else is as before: prices in rupees, bookings and their dates on India's calendar, gym owner locations limited to India, the "gyms in India" count on the landing page, the currency picker.
+- A bigger worldwide version (prices and bookings in each gym's own currency, each gym's own calendar, owners anywhere) was built and then removed again at your request; it is not in the code.
