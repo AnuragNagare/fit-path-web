@@ -175,6 +175,9 @@ export default function MapView({ query }: Props) {
   // Filter pipeline
   const visibleGyms = useMemo(() => {
     return gyms.filter(gym => {
+      // The featured gym ignores every filter.
+      if (gym.featured) return true;
+
       // 1. Feature checklist (gym must have all selected features)
       const hasFeatures = Array.from(selectedFeatures).every(id => gym.features.includes(id));
       if (!hasFeatures) return false;
@@ -203,7 +206,8 @@ export default function MapView({ query }: Props) {
 
   // Sorting pipeline
   const listedGyms = useMemo(() => {
-    const list = [...visibleGyms];
+    const featured = visibleGyms.filter(g => g.featured);
+    const list = visibleGyms.filter(g => !g.featured);
 
     switch (sort) {
       case 'price_low':
@@ -224,8 +228,9 @@ export default function MapView({ query }: Props) {
         break;
     }
 
-    // Keep active gym at top if selected
-    return activeGym ? [activeGym, ...list.filter(g => g.id !== activeGym.id)] : list;
+    // Featured gym is always first; a selected gym comes right after it.
+    const rest = activeGym && !activeGym.featured ? [activeGym, ...list.filter(g => g.id !== activeGym.id)] : list;
+    return [...featured, ...rest];
   }, [activeGym, visibleGyms, sort]);
 
   // Bring active gym into view if below fold

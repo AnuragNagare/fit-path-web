@@ -31,7 +31,8 @@ let inMemorySearchResults: CachedResultsPayload | null = null;
 
 export function makeQueryKey(q: SearchQuery | null): string {
   if (!q || !q.place) return '';
-  return `${q.place.lat.toFixed(4)},${q.place.lon.toFixed(4)}`;
+  // "v2" drops results cached before the featured gym existed.
+  return `v2:${q.place.lat.toFixed(4)},${q.place.lon.toFixed(4)}`;
 }
 
 export function getCachedSearchResults(query: SearchQuery | null): Gym[] | null {

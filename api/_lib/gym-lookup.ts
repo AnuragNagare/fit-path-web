@@ -1,4 +1,5 @@
 import { rows } from './db.js';
+import { FEATURED_GYM } from './featured.js';
 import { getGymById, haversineKm, type ApiGym, type Coordinates } from './geo.js';
 import { normalizeProfile } from './vendor-model.js';
 import { isVendorGymId } from './validate.js';
@@ -28,6 +29,7 @@ export function vendorApiGym(row: LiveRow, distanceKm = 0): ApiGym | null {
 // Any bookable gym by id: from the map (node-123) or a live registered gym (vendor-<uuid>).
 // Suspended or not yet approved gyms are not found.
 export async function loadGym(id: string): Promise<ApiGym | null> {
+  if (id === FEATURED_GYM.id) return FEATURED_GYM;
   if (!isVendorGymId(id)) return getGymById(id);
   const [row] = await rows<LiveRow>("SELECT id, live, live_lat, live_lon FROM vendor_gyms WHERE id = $1 AND status = 'live'", [id]);
   return row ? vendorApiGym(row) : null;

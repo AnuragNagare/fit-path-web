@@ -23,6 +23,7 @@ export interface Gym {
   phone: string | null;
   website: string | null;
   features: string[]; // feature ids (see src/data/features.ts)
+  featured?: boolean; // pinned to the top of every search, ignores filters and sort
   description: string | null; // written by the admin
   images: GymMedia[]; // photos
   videos: GymMedia[];

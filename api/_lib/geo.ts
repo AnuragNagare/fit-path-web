@@ -22,6 +22,7 @@ export type ApiGym = {
   phone: string | null;
   website: string | null;
   features: string[]; // feature ids from src/data/features.ts that OSM tags confirm
+  featured?: boolean; // pinned to the top of every search (see featured.ts)
 };
 
 const HEADERS = {

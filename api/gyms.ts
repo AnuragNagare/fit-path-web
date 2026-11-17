@@ -1,4 +1,5 @@
 import { requireUser } from './_lib/auth.js';
+import { FEATURED_GYM, featuredGymFor } from './_lib/featured.js';
 import { enrichGyms } from './_lib/gym-data.js';
 import { findGymsNearby } from './_lib/geo.js';
 import { findVendorGymsNearby } from './_lib/gym-lookup.js';
@@ -44,7 +45,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     if (osm.error && vendors.length === 0) throw osm.error;
     const nearby = [...osm.gyms, ...vendors].sort((a, b) => a.distanceKm - b.distanceKm);
-    res.status(200).json({ gyms: await enrichGyms(nearby) });
+    // The featured gym is always first, wherever the search is.
+    res.status(200).json({ gyms: await enrichGyms([featuredGymFor(center), ...nearby.filter(g => g.id !== FEATURED_GYM.id)]) });
   } catch (err) {
     res.status(502).json({ error: err instanceof Error ? err.message : 'Gym lookup failed.' });
   }
